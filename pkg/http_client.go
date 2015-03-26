@@ -81,7 +81,7 @@ type Getter interface {
 func NewHttpClient() *HttpClient {
 	hc := &HttpClient{
 		MaxBackoff: time.Second * 5,
-		MaxRetries: 15,
+		MaxRetries: 15, //TODO(configure duration)
 		Timeout:    time.Duration(2) * time.Second,
 		SkipTLS:    false,
 	}

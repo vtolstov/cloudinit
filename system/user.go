@@ -79,6 +79,22 @@ func CreateUser(u *config.User) error {
 	output, err := exec.Command("useradd", args...).CombinedOutput()
 	if err != nil {
 		log.Printf("Command 'useradd %s' failed: %v\n%s", strings.Join(args, " "), err, output)
+		return err
+	}
+
+	args = []string{}
+
+	if u.LockPasswd {
+		args = append(args, "--lock")
+	} else {
+		args = append(args, "--unlock")
+	}
+
+	args = append(args, u.Name)
+
+	output, err = exec.Command("passwd", args...).CombinedOutput()
+	if err != nil {
+		log.Printf("Command 'passwd %s' failed: %v\n%s", strings.Join(args, " "), err, output)
 	}
 	return err
 }

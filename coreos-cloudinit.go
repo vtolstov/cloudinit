@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/cloudsigma"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/ec2"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/openstack"
 	"github.com/coreos/coreos-cloudinit/datasource/proc_cmdline"
 	"github.com/coreos/coreos-cloudinit/datasource/url"
 	"github.com/coreos/coreos-cloudinit/datasource/waagent"
@@ -58,6 +59,7 @@ var (
 			ec2MetadataService          string
 			cloudSigmaMetadataService   bool
 			digitalOceanMetadataService string
+			openstackMetadataService    string
 			url                         string
 			procCmdLine                 bool
 		}
@@ -79,6 +81,7 @@ func init() {
 	flag.StringVar(&flags.sources.ec2MetadataService, "from-ec2-metadata", "", "Download EC2 data from the provided url")
 	flag.BoolVar(&flags.sources.cloudSigmaMetadataService, "from-cloudsigma-metadata", false, "Download data from CloudSigma server context")
 	flag.StringVar(&flags.sources.digitalOceanMetadataService, "from-digitalocean-metadata", "", "Download DigitalOcean data from the provided url")
+	flag.StringVar(&flags.sources.openstackMetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
 	flag.StringVar(&flags.sources.url, "from-url", "", "Download user-data from provided url")
 	flag.BoolVar(&flags.sources.procCmdLine, "from-proc-cmdline", false, fmt.Sprintf("Parse %s for '%s=<url>', using the cloud-config served by an HTTP GET to <url>", proc_cmdline.ProcCmdlineLocation, proc_cmdline.ProcCmdlineCloudConfigFlag))
 	flag.StringVar(&flags.oem, "oem", "", "Use the settings specific to the provided OEM")
@@ -99,6 +102,10 @@ var (
 		"ec2-compat": oemConfig{
 			"from-ec2-metadata": "http://169.254.169.254/",
 			"from-configdrive":  "/media/configdrive",
+		},
+		"openstack": oemConfig{
+			"from-openstack-metadata": "http://169.254.169.254/",
+			"convert-netconf":         "debian",
 		},
 		"rackspace-onmetal": oemConfig{
 			"from-configdrive": "/media/configdrive",
@@ -144,7 +151,7 @@ func main() {
 
 	dss := getDatasources()
 	if len(dss) == 0 {
-		fmt.Println("Provide at least one of --from-file, --from-configdrive, --from-ec2-metadata, --from-cloudsigma-metadata, --from-url or --from-proc-cmdline")
+		fmt.Println("Provide at least one of --from-file, --from-configdrive, --from-ec2-metadata, --from-digitalocean-metadata, --from-openstack-metadata --from-cloudsigma-metadata, --from-url or --from-proc-cmdline")
 		os.Exit(2)
 	}
 
@@ -319,6 +326,9 @@ func getDatasources() []datasource.Datasource {
 	}
 	if flags.sources.digitalOceanMetadataService != "" {
 		dss = append(dss, digitalocean.NewDatasource(flags.sources.digitalOceanMetadataService))
+	}
+	if flags.sources.openstackMetadataService != "" {
+		dss = append(dss, openstack.NewDatasource(flags.sources.openstackMetadataService))
 	}
 	if flags.sources.waagent != "" {
 		dss = append(dss, waagent.NewDatasource(flags.sources.waagent))

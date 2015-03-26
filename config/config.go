@@ -38,12 +38,18 @@ type CloudConfig struct {
 		Update    Update    `yaml:"update"`
 		Units     []Unit    `yaml:"units"`
 	} `yaml:"coreos"`
-	WriteFiles        []File   `yaml:"write_files"`
-	Hostname          string   `yaml:"hostname"`
-	Users             []User   `yaml:"users"`
-	ManageEtcHosts    EtcHosts `yaml:"manage_etc_hosts"`
-	NetworkConfigPath string   `yaml:"-"`
-	NetworkConfig     string   `yaml:"-"`
+	WriteFiles        []File     `yaml:"write_files"`
+	Debug             bool       `yaml:"debug"`
+	RunCMD            []string   `yaml:"runcmd"`
+	Hostname          string     `yaml:"hostname"`
+	Users             []User     `yaml:"users"`
+	ManageEtcHosts    EtcHosts   `yaml:"manage_etc_hosts"`
+	NetworkConfigPath string     `yaml:"-"`
+	NetworkConfig     string     `yaml:"-"`
+	SystemInfo        SystemInfo `yaml:"system_info"`
+	DisableRoot       bool       `yaml:"disable_root"`
+	SSHPasswdAuth     bool       `yaml:"ssh_pwauth"`
+	ResizeRootfs      bool       `yaml:"resize_rootfs"`
 }
 
 func IsCloudConfig(userdata string) bool {

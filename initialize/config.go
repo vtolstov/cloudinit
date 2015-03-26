@@ -96,9 +96,9 @@ func Apply(cfg config.CloudConfig, env *Environment) error {
 	}
 
 	if len(cfg.SSHAuthorizedKeys) > 0 {
-		err := system.AuthorizeSSHKeys("core", env.SSHKeyName(), cfg.SSHAuthorizedKeys)
+		err := system.AuthorizeSSHKeys(cfg.SystemInfo.DefaultUser.Name, env.SSHKeyName(), cfg.SSHAuthorizedKeys)
 		if err == nil {
-			log.Printf("Authorized SSH keys for core user")
+			log.Printf("Authorized SSH keys for %s user", cfg.SystemInfo.DefaultUser.Name)
 		} else {
 			return err
 		}

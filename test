@@ -23,6 +23,7 @@ declare -a TESTPKGS=(
 	datasource/metadata/cloudsigma
 	datasource/metadata/digitalocean
 	datasource/metadata/ec2
+  datasource/metadata/openstack
 	datasource/proc_cmdline
 	datasource/url
 	datasource/waagent
