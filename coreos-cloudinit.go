@@ -29,7 +29,6 @@ import (
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/cloudsigma"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/ec2"
-	"github.com/coreos/coreos-cloudinit/datasource/metadata/openstack"
 	"github.com/coreos/coreos-cloudinit/datasource/proc_cmdline"
 	"github.com/coreos/coreos-cloudinit/datasource/url"
 	"github.com/coreos/coreos-cloudinit/datasource/waagent"
@@ -37,6 +36,7 @@ import (
 	"github.com/coreos/coreos-cloudinit/network"
 	"github.com/coreos/coreos-cloudinit/pkg"
 	"github.com/coreos/coreos-cloudinit/system"
+	"github.com/vtolstov/cloudinit/datasource/metadata/openstack"
 )
 
 const (
