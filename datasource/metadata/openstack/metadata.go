@@ -18,6 +18,7 @@ package openstack
 
 import (
 	"encoding/json"
+	"log"
 	"net"
 	"strconv"
 
@@ -56,10 +57,10 @@ type DNS struct {
 }
 
 type Metadata struct {
-	Hostname   string     `json:"hostname"`
-	Interfaces Interfaces `json:"interfaces"`
-	PublicKeys []string   `json:"public_keys"`
-	DNS        DNS        `json:"dns"`
+	Hostname   string            `json:"hostname"`
+	Interfaces Interfaces        `json:"interfaces"`
+	PublicKeys map[string]string `json:"public_keys"`
+	DNS        DNS               `json:"dns"`
 }
 
 type metadataService struct {
@@ -98,11 +99,10 @@ func (ms *metadataService) FetchMetadata() (metadata datasource.Metadata, err er
 			metadata.PrivateIPv6 = net.ParseIP(m.Interfaces.Private[0].IPv6.IPAddress)
 		}
 	}
+	log.Printf("aaa %+v\n", m)
 	metadata.Hostname = m.Hostname
 	metadata.SSHPublicKeys = map[string]string{}
-	for i, key := range m.PublicKeys {
-		metadata.SSHPublicKeys[strconv.Itoa(i)] = key
-	}
+	metadata.SSHPublicKeys[strconv.Itoa(0)] = m.PublicKeys["root"]
 	metadata.NetworkConfig = data
 
 	return

@@ -80,7 +80,11 @@ func CreateUser(u *config.User) error {
 		return err
 	}
 
-	args = []string{}
+	return nil
+}
+
+func LockUnlockUser(u *config.User) error {
+	args := []string{}
 
 	if u.LockPasswd {
 		args = append(args, "--lock")
@@ -90,7 +94,7 @@ func CreateUser(u *config.User) error {
 
 	args = append(args, u.Name)
 
-	output, err = exec.Command("passwd", args...).CombinedOutput()
+	output, err := exec.Command("passwd", args...).CombinedOutput()
 	if err != nil {
 		log.Printf("Command 'passwd %s' failed: %v\n%s", strings.Join(args, " "), err, output)
 	}
@@ -98,7 +102,7 @@ func CreateUser(u *config.User) error {
 }
 
 func SetUserPassword(user, hash string) error {
-	cmd := exec.Command("/usr/sbin/chpasswd", "-e")
+	cmd := exec.Command("chpasswd", "-e")
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

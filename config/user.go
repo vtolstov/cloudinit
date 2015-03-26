@@ -29,5 +29,5 @@ type User struct {
 	NoUserGroup          bool     `yaml:"no_user_group"`
 	System               bool     `yaml:"system"`
 	NoLogInit            bool     `yaml:"no_log_init"`
-	LockPasswd           bool     `yaml:"lock-passwd"`
+	LockPasswd           bool     `yaml:"lock_passwd"`
 }

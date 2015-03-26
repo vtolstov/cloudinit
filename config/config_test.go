@@ -367,6 +367,7 @@ users:
     gecos: arbitrary comment
     homedir: /home/place
     no_create_home: yes
+    lock_passwd: false
     primary_group: things
     groups:
       - ping

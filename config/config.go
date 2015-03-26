@@ -28,10 +28,12 @@ import (
 // used for internal use) have the YAML tag '-' so that they aren't marshalled.
 type CloudConfig struct {
 	SSHAuthorizedKeys []string   `yaml:"ssh_authorized_keys"`
+	SSHFingerprints   bool       `yaml:"no_ssh_fingerprints"`
 	Debug             bool       `yaml:"debug"`
 	RunCMD            []string   `yaml:"runcmd"`
 	NetworkConfigPath string     `yaml:"-"`
 	NetworkConfig     string     `yaml:"-"`
+	Bootstrap         string     `yaml:"-"`
 	SystemInfo        SystemInfo `yaml:"system_info"`
 	DisableRoot       bool       `yaml:"disable_root"`
 	SSHPasswdAuth     bool       `yaml:"ssh_pwauth"`

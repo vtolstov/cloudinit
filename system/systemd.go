@@ -185,8 +185,22 @@ func ExecuteScript(scriptPath string) (string, error) {
 	return name, err
 }
 
-func SetHostname(hostname string) error {
-	return exec.Command("hostnamectl", "set-hostname", hostname).Run()
+func SetHostname(hostname string) (err error) {
+	for _, name := range []string{"hostnamectl", "hostname"} {
+		if _, err = exec.LookPath(name); err != nil {
+			continue
+		}
+		switch name {
+		case "hostname":
+			err = exec.Command(name, hostname).Run()
+		case "hostnamectl":
+			err = exec.Command(name, "set-hostname", hostname).Run()
+		}
+	}
+	if err != nil {
+		return
+	}
+	return ioutil.WriteFile("/etc/hostname", []byte(hostname+"\n"), 0644)
 }
 
 func Hostname() (string, error) {
