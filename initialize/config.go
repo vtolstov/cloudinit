@@ -1,18 +1,16 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package initialize
 
@@ -44,7 +42,7 @@ type CloudConfigUnit interface {
 // Apply renders a CloudConfig to an Environment. This can involve things like
 // configuring the hostname, adding new users, writing various configuration
 // files to disk, and manipulating systemd services.
-func Apply(cfg config.CloudConfig, env *Environment) error {
+func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Environment) error {
 	if cfg.Hostname != "" {
 		if err := system.SetHostname(cfg.Hostname); err != nil {
 			return err
@@ -87,6 +85,12 @@ func Apply(cfg config.CloudConfig, env *Environment) error {
 				return err
 			}
 		}
+		for _, u := range user.SSHImportGithubUsers {
+			log.Printf("Authorizing github user %s SSH keys for CoreOS user '%s'", u, user.Name)
+			if err := SSHImportGithubUser(user.Name, u); err != nil {
+				return err
+			}
+		}
 		if user.SSHImportURL != "" {
 			log.Printf("Authorizing SSH keys for CoreOS user '%s' from '%s'", user.Name, user.SSHImportURL)
 			if err := SSHImportKeysFromURL(user.Name, user.SSHImportURL); err != nil {
@@ -110,9 +114,10 @@ func Apply(cfg config.CloudConfig, env *Environment) error {
 	}
 
 	for _, ccf := range []CloudConfigFile{
-		system.OEM{OEM: cfg.Coreos.OEM},
-		system.Update{Update: cfg.Coreos.Update, ReadConfig: system.DefaultReadConfig},
+		system.OEM{OEM: cfg.CoreOS.OEM},
+		system.Update{Update: cfg.CoreOS.Update, ReadConfig: system.DefaultReadConfig},
 		system.EtcHosts{EtcHosts: cfg.ManageEtcHosts},
+		system.Flannel{Flannel: cfg.CoreOS.Flannel},
 	} {
 		f, err := ccf.File()
 		if err != nil {
@@ -124,16 +129,15 @@ func Apply(cfg config.CloudConfig, env *Environment) error {
 	}
 
 	var units []system.Unit
-	for _, u := range cfg.Coreos.Units {
+	for _, u := range cfg.CoreOS.Units {
 		units = append(units, system.Unit{Unit: u})
 	}
 
 	for _, ccu := range []CloudConfigUnit{
-		system.Etcd{Etcd: cfg.Coreos.Etcd},
-		system.Fleet{Fleet: cfg.Coreos.Fleet},
-		system.Locksmith{Locksmith: cfg.Coreos.Locksmith},
-		system.Flannel{Flannel: cfg.Coreos.Flannel},
-		system.Update{Update: cfg.Coreos.Update, ReadConfig: system.DefaultReadConfig},
+		system.Etcd{Etcd: cfg.CoreOS.Etcd},
+		system.Fleet{Fleet: cfg.CoreOS.Fleet},
+		system.Locksmith{Locksmith: cfg.CoreOS.Locksmith},
+		system.Update{Update: cfg.CoreOS.Update, ReadConfig: system.DefaultReadConfig},
 	} {
 		units = append(units, ccu.Units()...)
 	}
@@ -161,23 +165,9 @@ func Apply(cfg config.CloudConfig, env *Environment) error {
 		}
 	}
 
-	if env.NetconfType() != "" {
-		var interfaces []network.InterfaceGenerator
-		var err error
-		switch env.NetconfType() {
-		case "debian":
-			interfaces, err = network.ProcessDebianNetconf(cfg.NetworkConfig)
-		case "digitalocean":
-			interfaces, err = network.ProcessDigitalOceanNetconf(cfg.NetworkConfig)
-		default:
-			err = fmt.Errorf("Unsupported network config format %q", env.NetconfType())
-		}
-		if err != nil {
-			return err
-		}
-
-		units = append(units, createNetworkingUnits(interfaces)...)
-		if err := system.RestartNetwork(interfaces); err != nil {
+	if len(ifaces) > 0 {
+		units = append(units, createNetworkingUnits(ifaces)...)
+		if err := system.RestartNetwork(ifaces); err != nil {
 			return err
 		}
 	}

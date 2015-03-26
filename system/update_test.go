@@ -1,18 +1,16 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package system
 
@@ -72,15 +70,6 @@ func TestUpdateUnits(t *testing.T) {
 			}}},
 		},
 		{
-			config: config.Update{RebootStrategy: "false"},
-			units: []Unit{{config.Unit{
-				Name:    "locksmithd.service",
-				Command: "stop",
-				Runtime: true,
-				Mask:    true,
-			}}},
-		},
-		{
 			config: config.Update{RebootStrategy: "off"},
 			units: []Unit{{config.Unit{
 				Name:    "locksmithd.service",
@@ -109,7 +98,7 @@ func TestUpdateFile(t *testing.T) {
 		},
 		{
 			config: config.Update{RebootStrategy: "wizzlewazzle"},
-			err:    &config.ErrorValid{Value: "wizzlewazzle", Field: "RebootStrategy", Valid: []string{"best-effort", "etcd-lock", "reboot", "off", "false"}},
+			err:    &config.ErrorValid{Value: "wizzlewazzle", Field: "RebootStrategy", Valid: "^(best-effort|etcd-lock|reboot|off)$"},
 		},
 		{
 			config: config.Update{Group: "master", Server: "http://foo.com"},
@@ -139,14 +128,6 @@ func TestUpdateFile(t *testing.T) {
 			config: config.Update{RebootStrategy: "reboot"},
 			file: &File{config.File{
 				Content:            "REBOOT_STRATEGY=reboot\n",
-				Path:               "etc/coreos/update.conf",
-				RawFilePermissions: "0644",
-			}},
-		},
-		{
-			config: config.Update{RebootStrategy: "false"},
-			file: &File{config.File{
-				Content:            "REBOOT_STRATEGY=false\n",
 				Path:               "etc/coreos/update.conf",
 				RawFilePermissions: "0644",
 			}},

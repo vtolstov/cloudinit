@@ -1,18 +1,16 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package network
 
@@ -46,7 +44,7 @@ func TestProcessDebianNetconf(t *testing.T) {
 		{"auto eth1\nauto eth2", false, 0},
 		{"iface eth1 inet manual", false, 1},
 	} {
-		interfaces, err := ProcessDebianNetconf(tt.in)
+		interfaces, err := ProcessDebianNetconf([]byte(tt.in))
 		failed := err != nil
 		if tt.fail != failed {
 			t.Fatalf("bad failure state for %q: got %t, want %t", tt.in, failed, tt.fail)

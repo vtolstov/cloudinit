@@ -1,27 +1,26 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package ec2
 
 import (
-	"bytes"
 	"fmt"
+	"net"
 	"reflect"
 	"testing"
 
+	"github.com/coreos/coreos-cloudinit/datasource"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/test"
 	"github.com/coreos/coreos-cloudinit/pkg"
@@ -147,7 +146,7 @@ func TestFetchMetadata(t *testing.T) {
 		root         string
 		metadataPath string
 		resources    map[string]string
-		expect       []byte
+		expect       datasource.Metadata
 		clientErr    error
 		expectErr    error
 	}{
@@ -163,15 +162,37 @@ func TestFetchMetadata(t *testing.T) {
 			root:         "/",
 			metadataPath: "2009-04-04/meta-data",
 			resources: map[string]string{
-				"/2009-04-04/meta-data/hostname":                    "host",
-				"/2009-04-04/meta-data/local-ipv4":                  "1.2.3.4",
-				"/2009-04-04/meta-data/public-ipv4":                 "5.6.7.8",
-				"/2009-04-04/meta-data/public-keys":                 "0=test1\n",
-				"/2009-04-04/meta-data/public-keys/0":               "openssh-key",
-				"/2009-04-04/meta-data/public-keys/0/openssh-key":   "key",
-				"/2009-04-04/meta-data/network_config/content_path": "path",
+				"/2009-04-04/meta-data/hostname":                  "host",
+				"/2009-04-04/meta-data/local-ipv4":                "1.2.3.4",
+				"/2009-04-04/meta-data/public-ipv4":               "5.6.7.8",
+				"/2009-04-04/meta-data/public-keys":               "0=test1\n",
+				"/2009-04-04/meta-data/public-keys/0":             "openssh-key",
+				"/2009-04-04/meta-data/public-keys/0/openssh-key": "key",
 			},
-			expect: []byte(`{"hostname":"host","local-ipv4":"1.2.3.4","network_config":{"content_path":"path"},"public-ipv4":"5.6.7.8","public_keys":{"test1":"key"}}`),
+			expect: datasource.Metadata{
+				Hostname:      "host",
+				PrivateIPv4:   net.ParseIP("1.2.3.4"),
+				PublicIPv4:    net.ParseIP("5.6.7.8"),
+				SSHPublicKeys: map[string]string{"test1": "key"},
+			},
+		},
+		{
+			root:         "/",
+			metadataPath: "2009-04-04/meta-data",
+			resources: map[string]string{
+				"/2009-04-04/meta-data/hostname":                  "host domain another_domain",
+				"/2009-04-04/meta-data/local-ipv4":                "1.2.3.4",
+				"/2009-04-04/meta-data/public-ipv4":               "5.6.7.8",
+				"/2009-04-04/meta-data/public-keys":               "0=test1\n",
+				"/2009-04-04/meta-data/public-keys/0":             "openssh-key",
+				"/2009-04-04/meta-data/public-keys/0/openssh-key": "key",
+			},
+			expect: datasource.Metadata{
+				Hostname:      "host",
+				PrivateIPv4:   net.ParseIP("1.2.3.4"),
+				PublicIPv4:    net.ParseIP("5.6.7.8"),
+				SSHPublicKeys: map[string]string{"test1": "key"},
+			},
 		},
 		{
 			clientErr: pkg.ErrTimeout{Err: fmt.Errorf("test error")},
@@ -187,8 +208,8 @@ func TestFetchMetadata(t *testing.T) {
 		if Error(err) != Error(tt.expectErr) {
 			t.Fatalf("bad error (%q): want %q, got %q", tt.resources, tt.expectErr, err)
 		}
-		if !bytes.Equal(metadata, tt.expect) {
-			t.Fatalf("bad fetch (%q): want %q, got %q", tt.resources, tt.expect, metadata)
+		if !reflect.DeepEqual(tt.expect, metadata) {
+			t.Fatalf("bad fetch (%q): want %#v, got %#v", tt.resources, tt.expect, metadata)
 		}
 	}
 }

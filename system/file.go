@@ -1,25 +1,20 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package system
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -43,60 +38,11 @@ func (f *File) Permissions() (os.FileMode, error) {
 	}
 
 	// Parse string representation of file mode as integer
-	perm, err := strconv.ParseInt(f.RawFilePermissions, 0, 32)
+	perm, err := strconv.ParseInt(f.RawFilePermissions, 8, 32)
 	if err != nil {
 		return 0, fmt.Errorf("Unable to parse file permissions %q as integer", f.RawFilePermissions)
 	}
 	return os.FileMode(perm), nil
-}
-
-func DecodeBase64Content(content string) ([]byte, error) {
-	output, err := base64.StdEncoding.DecodeString(content)
-
-	if err != nil {
-		return nil, fmt.Errorf("Unable to decode base64: %v", err)
-	}
-
-	return output, nil
-}
-
-func DecodeGzipContent(content string) ([]byte, error) {
-	gzr, err := gzip.NewReader(bytes.NewReader([]byte(content)))
-
-	if err != nil {
-		return nil, fmt.Errorf("Unable to decode gzip: %v", err)
-	}
-	defer gzr.Close()
-
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(gzr)
-
-	return buf.Bytes(), nil
-}
-
-func DecodeContent(content string, encoding string) ([]byte, error) {
-	switch encoding {
-	case "":
-		return []byte(content), nil
-
-	case "b64", "base64":
-		return DecodeBase64Content(content)
-
-	case "gz", "gzip":
-		return DecodeGzipContent(content)
-
-	case "gz+base64", "gzip+base64", "gz+b64", "gzip+b64":
-		gz, err := DecodeBase64Content(content)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return DecodeGzipContent(string(gz))
-	}
-
-	return nil, fmt.Errorf("Unsupported encoding %s", encoding)
-
 }
 
 func WriteFile(f *File, root string) (string, error) {
@@ -104,7 +50,7 @@ func WriteFile(f *File, root string) (string, error) {
 	dir := path.Dir(fullpath)
 	log.Printf("Writing file to %q", fullpath)
 
-	content, err := DecodeContent(f.Content, f.Encoding)
+	content, err := config.DecodeContent(f.Content, f.Encoding)
 
 	if err != nil {
 		return "", fmt.Errorf("Unable to decode %s (%v)", f.Path, err)

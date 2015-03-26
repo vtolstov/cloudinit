@@ -1,26 +1,27 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package configdrive
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
+
+	"github.com/coreos/coreos-cloudinit/datasource"
 )
 
 const (
@@ -49,19 +50,34 @@ func (cd *configDrive) ConfigRoot() string {
 	return cd.openstackRoot()
 }
 
-func (cd *configDrive) FetchMetadata() ([]byte, error) {
-	return cd.tryReadFile(path.Join(cd.openstackVersionRoot(), "meta_data.json"))
+func (cd *configDrive) FetchMetadata() (metadata datasource.Metadata, err error) {
+	var data []byte
+	var m struct {
+		SSHAuthorizedKeyMap map[string]string `json:"public_keys"`
+		Hostname            string            `json:"hostname"`
+		NetworkConfig       struct {
+			ContentPath string `json:"content_path"`
+		} `json:"network_config"`
+	}
+
+	if data, err = cd.tryReadFile(path.Join(cd.openstackVersionRoot(), "meta_data.json")); err != nil || len(data) == 0 {
+		return
+	}
+	if err = json.Unmarshal([]byte(data), &m); err != nil {
+		return
+	}
+
+	metadata.SSHPublicKeys = m.SSHAuthorizedKeyMap
+	metadata.Hostname = m.Hostname
+	if m.NetworkConfig.ContentPath != "" {
+		metadata.NetworkConfig, err = cd.tryReadFile(path.Join(cd.openstackRoot(), m.NetworkConfig.ContentPath))
+	}
+
+	return
 }
 
 func (cd *configDrive) FetchUserdata() ([]byte, error) {
 	return cd.tryReadFile(path.Join(cd.openstackVersionRoot(), "user_data"))
-}
-
-func (cd *configDrive) FetchNetworkConfig(filename string) ([]byte, error) {
-	if filename == "" {
-		return []byte{}, nil
-	}
-	return cd.tryReadFile(path.Join(cd.openstackRoot(), filename))
 }
 
 func (cd *configDrive) Type() string {

@@ -1,28 +1,27 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package ec2
 
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 
+	"github.com/coreos/coreos-cloudinit/datasource"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata"
 	"github.com/coreos/coreos-cloudinit/pkg"
 )
@@ -42,59 +41,51 @@ func NewDatasource(root string) *metadataService {
 	return &metadataService{metadata.NewDatasource(root, apiVersion, userdataPath, metadataPath)}
 }
 
-func (ms metadataService) FetchMetadata() ([]byte, error) {
-	attrs := make(map[string]interface{})
+func (ms metadataService) FetchMetadata() (datasource.Metadata, error) {
+	metadata := datasource.Metadata{}
+
 	if keynames, err := ms.fetchAttributes(fmt.Sprintf("%s/public-keys", ms.MetadataUrl())); err == nil {
 		keyIDs := make(map[string]string)
 		for _, keyname := range keynames {
 			tokens := strings.SplitN(keyname, "=", 2)
 			if len(tokens) != 2 {
-				return nil, fmt.Errorf("malformed public key: %q", keyname)
+				return metadata, fmt.Errorf("malformed public key: %q", keyname)
 			}
 			keyIDs[tokens[1]] = tokens[0]
 		}
 
-		keys := make(map[string]string)
+		metadata.SSHPublicKeys = map[string]string{}
 		for name, id := range keyIDs {
 			sshkey, err := ms.fetchAttribute(fmt.Sprintf("%s/public-keys/%s/openssh-key", ms.MetadataUrl(), id))
 			if err != nil {
-				return nil, err
+				return metadata, err
 			}
-			keys[name] = sshkey
+			metadata.SSHPublicKeys[name] = sshkey
 			fmt.Printf("Found SSH key for %q\n", name)
 		}
-		attrs["public_keys"] = keys
 	} else if _, ok := err.(pkg.ErrNotFound); !ok {
-		return nil, err
+		return metadata, err
 	}
 
 	if hostname, err := ms.fetchAttribute(fmt.Sprintf("%s/hostname", ms.MetadataUrl())); err == nil {
-		attrs["hostname"] = hostname
+		metadata.Hostname = strings.Split(hostname, " ")[0]
 	} else if _, ok := err.(pkg.ErrNotFound); !ok {
-		return nil, err
+		return metadata, err
 	}
 
 	if localAddr, err := ms.fetchAttribute(fmt.Sprintf("%s/local-ipv4", ms.MetadataUrl())); err == nil {
-		attrs["local-ipv4"] = localAddr
+		metadata.PrivateIPv4 = net.ParseIP(localAddr)
 	} else if _, ok := err.(pkg.ErrNotFound); !ok {
-		return nil, err
+		return metadata, err
 	}
 
 	if publicAddr, err := ms.fetchAttribute(fmt.Sprintf("%s/public-ipv4", ms.MetadataUrl())); err == nil {
-		attrs["public-ipv4"] = publicAddr
+		metadata.PublicIPv4 = net.ParseIP(publicAddr)
 	} else if _, ok := err.(pkg.ErrNotFound); !ok {
-		return nil, err
+		return metadata, err
 	}
 
-	if content_path, err := ms.fetchAttribute(fmt.Sprintf("%s/network_config/content_path", ms.MetadataUrl())); err == nil {
-		attrs["network_config"] = map[string]string{
-			"content_path": content_path,
-		}
-	} else if _, ok := err.(pkg.ErrNotFound); !ok {
-		return nil, err
-	}
-
-	return json.Marshal(attrs)
+	return metadata, nil
 }
 
 func (ms metadataService) Type() string {

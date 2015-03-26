@@ -1,61 +1,49 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package waagent
 
 import (
-	"encoding/json"
-	"os"
+	"net"
 	"reflect"
 	"testing"
+
+	"github.com/coreos/coreos-cloudinit/datasource"
+	"github.com/coreos/coreos-cloudinit/datasource/test"
 )
-
-type mockFilesystem map[string][]byte
-
-func (m mockFilesystem) readFile(filename string) ([]byte, error) {
-	if contents := m[filename]; contents != nil {
-		return contents, nil
-	}
-	return nil, os.ErrNotExist
-}
 
 func TestFetchMetadata(t *testing.T) {
 	for _, tt := range []struct {
 		root     string
-		files    mockFilesystem
-		metadata map[string]string
+		files    test.MockFilesystem
+		metadata datasource.Metadata
 	}{
 		{
-			"/",
-			mockFilesystem{},
-			nil,
+			root:  "/",
+			files: test.NewMockFilesystem(),
 		},
 		{
-			"/",
-			mockFilesystem{"/SharedConfig.xml": []byte("")},
-			nil,
+			root:  "/",
+			files: test.NewMockFilesystem(test.File{Path: "/SharedConfig.xml", Contents: ""}),
 		},
 		{
-			"/var/lib/waagent",
-			mockFilesystem{"/var/lib/waagent/SharedConfig.xml": []byte("")},
-			nil,
+			root:  "/var/lib/waagent",
+			files: test.NewMockFilesystem(test.File{Path: "/var/lib/waagent/SharedConfig.xml", Contents: ""}),
 		},
 		{
-			"/var/lib/waagent",
-			mockFilesystem{"/var/lib/waagent/SharedConfig.xml": []byte(`<?xml version="1.0" encoding="utf-8"?>
+			root: "/var/lib/waagent",
+			files: test.NewMockFilesystem(test.File{Path: "/var/lib/waagent/SharedConfig.xml", Contents: `<?xml version="1.0" encoding="utf-8"?>
 <SharedConfig version="1.0.0.0" goalStateIncarnation="1">
   <Deployment name="c8f9e4c9c18948e1bebf57c5685da756" guid="{1d10394f-c741-4a1a-a6bb-278f213c5a5e}" incarnation="0" isNonCancellableTopologyChangeEnabled="false">
     <Service name="core-test-1" guid="{00000000-0000-0000-0000-000000000000}" />
@@ -91,26 +79,20 @@ func TestFetchMetadata(t *testing.T) {
       </InputEndpoints>
     </Instance>
   </Instances>
-</SharedConfig>`)},
-			map[string]string{
-				"local-ipv4":  "100.73.202.64",
-				"public-ipv4": "191.239.39.77",
+</SharedConfig>`}),
+			metadata: datasource.Metadata{
+				PrivateIPv4: net.ParseIP("100.73.202.64"),
+				PublicIPv4:  net.ParseIP("191.239.39.77"),
 			},
 		},
 	} {
-		a := waagent{tt.root, tt.files.readFile}
-		metadataBytes, err := a.FetchMetadata()
+		a := waagent{tt.root, tt.files.ReadFile}
+		metadata, err := a.FetchMetadata()
 		if err != nil {
-			t.Fatalf("bad error for %q: want %v, got %q", tt, nil, err)
-		}
-		var metadata map[string]string
-		if len(metadataBytes) > 0 {
-			if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
-				panic(err)
-			}
+			t.Fatalf("bad error for %+v: want %v, got %q", tt, nil, err)
 		}
 		if !reflect.DeepEqual(tt.metadata, metadata) {
-			t.Fatalf("bad metadata for %q: want %q, got %q", tt, tt.metadata, metadata)
+			t.Fatalf("bad metadata for %+v: want %#v, got %#v", tt, tt.metadata, metadata)
 		}
 	}
 }
@@ -118,25 +100,25 @@ func TestFetchMetadata(t *testing.T) {
 func TestFetchUserdata(t *testing.T) {
 	for _, tt := range []struct {
 		root  string
-		files mockFilesystem
+		files test.MockFilesystem
 	}{
 		{
 			"/",
-			mockFilesystem{},
+			test.NewMockFilesystem(),
 		},
 		{
 			"/",
-			mockFilesystem{"/CustomData": []byte{}},
+			test.NewMockFilesystem(test.File{Path: "/CustomData", Contents: ""}),
 		},
 		{
 			"/var/lib/waagent/",
-			mockFilesystem{"/var/lib/waagent/CustomData": []byte{}},
+			test.NewMockFilesystem(test.File{Path: "/var/lib/waagent/CustomData", Contents: ""}),
 		},
 	} {
-		a := waagent{tt.root, tt.files.readFile}
+		a := waagent{tt.root, tt.files.ReadFile}
 		_, err := a.FetchUserdata()
 		if err != nil {
-			t.Fatalf("bad error for %q: want %v, got %q", tt, nil, err)
+			t.Fatalf("bad error for %+v: want %v, got %q", tt, nil, err)
 		}
 	}
 }

@@ -1,18 +1,16 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package main
 
@@ -36,12 +34,13 @@ import (
 	"github.com/coreos/coreos-cloudinit/datasource/url"
 	"github.com/coreos/coreos-cloudinit/datasource/waagent"
 	"github.com/coreos/coreos-cloudinit/initialize"
+	"github.com/coreos/coreos-cloudinit/network"
 	"github.com/coreos/coreos-cloudinit/pkg"
 	"github.com/coreos/coreos-cloudinit/system"
 )
 
 const (
-	version               = "1.0.2+git"
+	version               = "1.3.3+git"
 	datasourceInterval    = 100 * time.Millisecond
 	datasourceMaxInterval = 30 * time.Second
 	datasourceTimeout     = 5 * time.Minute
@@ -114,6 +113,9 @@ var (
 		"azure": oemConfig{
 			"from-waagent": "/var/lib/waagent",
 		},
+		"cloudsigma": oemConfig{
+			"from-cloudsigma-metadata": "true",
+		},
 	}
 )
 
@@ -185,43 +187,18 @@ func main() {
 	}
 
 	fmt.Printf("Fetching meta-data from datasource of type %q\n", ds.Type())
-	metadataBytes, err := ds.FetchMetadata()
+	metadata, err := ds.FetchMetadata()
 	if err != nil {
 		fmt.Printf("Failed fetching meta-data from datasource: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Extract IPv4 addresses from metadata if possible
-	var subs map[string]string
-	if len(metadataBytes) > 0 {
-		subs, err = initialize.ExtractIPsFromMetadata(metadataBytes)
-		if err != nil {
-			fmt.Printf("Failed extracting IPs from meta-data: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
 	// Apply environment to user-data
-	env := initialize.NewEnvironment("/", ds.ConfigRoot(), flags.workspace, flags.convertNetconf, flags.sshKeyName, subs)
+	env := initialize.NewEnvironment("/", ds.ConfigRoot(), flags.workspace, flags.sshKeyName, metadata)
 	userdata := env.Apply(string(userdataBytes))
 
-	var ccm, ccu *config.CloudConfig
+	var ccu *config.CloudConfig
 	var script *config.Script
-	if ccm, err = initialize.ParseMetaData(string(metadataBytes)); err != nil {
-		fmt.Printf("Failed to parse meta-data: %v\n", err)
-		os.Exit(1)
-	}
-
-	if ccm != nil && flags.convertNetconf != "" {
-		fmt.Printf("Fetching network config from datasource of type %q\n", ds.Type())
-		netconfBytes, err := ds.FetchNetworkConfig(ccm.NetworkConfigPath)
-		if err != nil {
-			fmt.Printf("Failed fetching network config from datasource: %v\n", err)
-			os.Exit(1)
-		}
-		ccm.NetworkConfig = string(netconfBytes)
-	}
-
 	if ud, err := initialize.ParseUserData(userdata); err != nil {
 		fmt.Printf("Failed to parse user-data: %v\nContinuing...\n", err)
 		failure = true
@@ -229,31 +206,34 @@ func main() {
 		switch t := ud.(type) {
 		case *config.CloudConfig:
 			ccu = t
-		case config.Script:
-			script = &t
+		case *config.Script:
+			script = t
 		}
 	}
 
-	var cc *config.CloudConfig
-	if ccm != nil && ccu != nil {
-		fmt.Println("Merging cloud-config from meta-data and user-data")
-		merged := mergeCloudConfig(*ccm, *ccu)
-		cc = &merged
-	} else if ccm != nil && ccu == nil {
-		fmt.Println("Processing cloud-config from meta-data")
-		cc = ccm
-	} else if ccm == nil && ccu != nil {
-		fmt.Println("Processing cloud-config from user-data")
-		cc = ccu
-	} else {
-		fmt.Println("No cloud-config data to handle.")
-	}
+	fmt.Println("Merging cloud-config from meta-data and user-data")
+	cc := mergeConfigs(ccu, metadata)
 
-	if cc != nil {
-		if err = initialize.Apply(*cc, env); err != nil {
-			fmt.Printf("Failed to apply cloud-config: %v\n", err)
+	var ifaces []network.InterfaceGenerator
+	if flags.convertNetconf != "" {
+		var err error
+		switch flags.convertNetconf {
+		case "debian":
+			ifaces, err = network.ProcessDebianNetconf(metadata.NetworkConfig)
+		case "digitalocean":
+			ifaces, err = network.ProcessDigitalOceanNetconf(metadata.NetworkConfig)
+		default:
+			err = fmt.Errorf("Unsupported network config format %q", flags.convertNetconf)
+		}
+		if err != nil {
+			fmt.Printf("Failed to generate interfaces: %v\n", err)
 			os.Exit(1)
 		}
+	}
+
+	if err = initialize.Apply(cc, ifaces, env); err != nil {
+		fmt.Printf("Failed to apply cloud-config: %v\n", err)
+		os.Exit(1)
 	}
 
 	if script != nil {
@@ -268,38 +248,25 @@ func main() {
 	}
 }
 
-// mergeCloudConfig merges certain options from mdcc (a CloudConfig derived from
-// meta-data) onto udcc (a CloudConfig derived from user-data), if they are
-// not already set on udcc (i.e. user-data always takes precedence)
-// NB: This needs to be kept in sync with ParseMetadata so that it tracks all
-// elements of a CloudConfig which that function can populate.
-func mergeCloudConfig(mdcc, udcc config.CloudConfig) (cc config.CloudConfig) {
-	if mdcc.Hostname != "" {
-		if udcc.Hostname != "" {
-			fmt.Printf("Warning: user-data hostname (%s) overrides metadata hostname (%s)\n", udcc.Hostname, mdcc.Hostname)
-		} else {
-			udcc.Hostname = mdcc.Hostname
-		}
+// mergeConfigs merges certain options from md (meta-data from the datasource)
+// onto cc (a CloudConfig derived from user-data), if they are not already set
+// on cc (i.e. user-data always takes precedence)
+func mergeConfigs(cc *config.CloudConfig, md datasource.Metadata) (out config.CloudConfig) {
+	if cc != nil {
+		out = *cc
+	}
 
-	}
-	for _, key := range mdcc.SSHAuthorizedKeys {
-		udcc.SSHAuthorizedKeys = append(udcc.SSHAuthorizedKeys, key)
-	}
-	if mdcc.NetworkConfigPath != "" {
-		if udcc.NetworkConfigPath != "" {
-			fmt.Printf("Warning: user-data NetworkConfigPath %s overrides metadata NetworkConfigPath %s\n", udcc.NetworkConfigPath, mdcc.NetworkConfigPath)
+	if md.Hostname != "" {
+		if out.Hostname != "" {
+			fmt.Printf("Warning: user-data hostname (%s) overrides metadata hostname (%s)\n", out.Hostname, md.Hostname)
 		} else {
-			udcc.NetworkConfigPath = mdcc.NetworkConfigPath
+			out.Hostname = md.Hostname
 		}
 	}
-	if mdcc.NetworkConfig != "" {
-		if udcc.NetworkConfig != "" {
-			fmt.Printf("Warning: user-data NetworkConfig %s overrides metadata NetworkConfig %s\n", udcc.NetworkConfig, mdcc.NetworkConfig)
-		} else {
-			udcc.NetworkConfig = mdcc.NetworkConfig
-		}
+	for _, key := range md.SSHPublicKeys {
+		out.SSHAuthorizedKeys = append(out.SSHAuthorizedKeys, key)
 	}
-	return udcc
+	return
 }
 
 // getDatasources creates a slice of possible Datasources for cloudinit based

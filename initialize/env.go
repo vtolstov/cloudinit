@@ -1,28 +1,28 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package initialize
 
 import (
+	"net"
 	"os"
 	"path"
 	"regexp"
 	"strings"
 
 	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/datasource"
 	"github.com/coreos/coreos-cloudinit/system"
 )
 
@@ -32,28 +32,25 @@ type Environment struct {
 	root          string
 	configRoot    string
 	workspace     string
-	netconfType   string
 	sshKeyName    string
 	substitutions map[string]string
 }
 
 // TODO(jonboulle): this is getting unwieldy, should be able to simplify the interface somehow
-func NewEnvironment(root, configRoot, workspace, netconfType, sshKeyName string, substitutions map[string]string) *Environment {
-	if substitutions == nil {
-		substitutions = make(map[string]string)
-	}
-	// If certain values are not in the supplied substitution, fall back to retrieving them from the environment
-	for k, v := range map[string]string{
-		"$public_ipv4":  os.Getenv("COREOS_PUBLIC_IPV4"),
-		"$private_ipv4": os.Getenv("COREOS_PRIVATE_IPV4"),
-		"$public_ipv6":  os.Getenv("COREOS_PUBLIC_IPV6"),
-		"$private_ipv6": os.Getenv("COREOS_PRIVATE_IPV6"),
-	} {
-		if _, ok := substitutions[k]; !ok {
-			substitutions[k] = v
+func NewEnvironment(root, configRoot, workspace, sshKeyName string, metadata datasource.Metadata) *Environment {
+	firstNonNull := func(ip net.IP, env string) string {
+		if ip == nil {
+			return env
 		}
+		return ip.String()
 	}
-	return &Environment{root, configRoot, workspace, netconfType, sshKeyName, substitutions}
+	substitutions := map[string]string{
+		"$public_ipv4":  firstNonNull(metadata.PublicIPv4, os.Getenv("COREOS_PUBLIC_IPV4")),
+		"$private_ipv4": firstNonNull(metadata.PrivateIPv4, os.Getenv("COREOS_PRIVATE_IPV4")),
+		"$public_ipv6":  firstNonNull(metadata.PublicIPv6, os.Getenv("COREOS_PUBLIC_IPV6")),
+		"$private_ipv6": firstNonNull(metadata.PrivateIPv6, os.Getenv("COREOS_PRIVATE_IPV6")),
+	}
+	return &Environment{root, configRoot, workspace, sshKeyName, substitutions}
 }
 
 func (e *Environment) Workspace() string {
@@ -66,10 +63,6 @@ func (e *Environment) Root() string {
 
 func (e *Environment) ConfigRoot() string {
 	return e.configRoot
-}
-
-func (e *Environment) NetconfType() string {
-	return e.netconfType
 }
 
 func (e *Environment) SSHKeyName() string {

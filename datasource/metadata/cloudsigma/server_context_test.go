@@ -1,23 +1,21 @@
-/*
-   Copyright 2014 CoreOS, Inc.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package cloudsigma
 
 import (
-	"encoding/json"
+	"net"
 	"reflect"
 	"testing"
 )
@@ -45,13 +43,28 @@ func (f *fakeCepgoClient) FetchRaw(key string) ([]byte, error) {
 	return f.raw, f.err
 }
 
-func TestServerContextFetchMetadata(t *testing.T) {
-	var metadata struct {
-		Hostname   string            `json:"name"`
-		PublicKeys map[string]string `json:"public_keys"`
-		LocalIPv4  string            `json:"local-ipv4"`
-		PublicIPv4 string            `json:"public-ipv4"`
+func TestServerContextWithEmptyPublicSSHKey(t *testing.T) {
+	client := new(fakeCepgoClient)
+	scs := NewServerContextService()
+	scs.client = client
+	client.raw = []byte(`{
+		"meta": {
+			"base64_fields": "cloudinit-user-data",
+			"cloudinit-user-data": "I2Nsb3VkLWNvbmZpZwoKaG9zdG5hbWU6IGNvcmVvczE=",
+			"ssh_public_key": ""
+		}
+	}`)
+	metadata, err := scs.FetchMetadata()
+	if err != nil {
+		t.Error(err.Error())
 	}
+
+	if len(metadata.SSHPublicKeys) != 0 {
+		t.Error("There should be no Public SSH Keys provided")
+	}
+}
+
+func TestServerContextFetchMetadata(t *testing.T) {
 	client := new(fakeCepgoClient)
 	scs := NewServerContextService()
 	scs.client = client
@@ -116,12 +129,8 @@ func TestServerContextFetchMetadata(t *testing.T) {
 		"uuid": "20a0059b-041e-4d0c-bcc6-9b2852de48b3"
 	}`)
 
-	metadataBytes, err := scs.FetchMetadata()
+	metadata, err := scs.FetchMetadata()
 	if err != nil {
-		t.Error(err.Error())
-	}
-
-	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 		t.Error(err.Error())
 	}
 
@@ -129,11 +138,11 @@ func TestServerContextFetchMetadata(t *testing.T) {
 		t.Errorf("Hostname is not 'coreos' but %s instead", metadata.Hostname)
 	}
 
-	if metadata.PublicKeys["john@doe"] != "ssh-rsa AAAAB3NzaC1yc2E.../hQ5D5 john@doe" {
+	if metadata.SSHPublicKeys["john@doe"] != "ssh-rsa AAAAB3NzaC1yc2E.../hQ5D5 john@doe" {
 		t.Error("Public SSH Keys are not being read properly")
 	}
 
-	if metadata.PublicIPv4 != "31.171.251.74" {
+	if !metadata.PublicIPv4.Equal(net.ParseIP("31.171.251.74")) {
 		t.Errorf("Public IP is not 31.171.251.74 but %s instead", metadata.PublicIPv4)
 	}
 }
