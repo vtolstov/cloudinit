@@ -11,4 +11,4 @@ fi
 export GOBIN=${PWD}/bin
 export GOPATH=${PWD}/gopath
 
-go build -o bin/coreos-cloudinit ${REPO_PATH}
+go build -o bin/cloudinit ${REPO_PATH}
