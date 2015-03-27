@@ -10,5 +10,7 @@ fi
 
 export GOBIN=${PWD}/bin
 export GOPATH=${PWD}/gopath
+export CGO_ENABLED=0
 
-go build -o bin/cloudinit ${REPO_PATH}
+go build -a -installsuffix cgo -o bin/cloudinit-x86_64 ${REPO_PATH}
+GOARCH=386 go build -a -installsuffix cgo -o bin/cloudinit-x86_32 ${REPO_PATH}
