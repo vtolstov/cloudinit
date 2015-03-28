@@ -26,7 +26,6 @@ import (
 	"github.com/coreos/coreos-cloudinit/datasource"
 	"github.com/coreos/coreos-cloudinit/datasource/configdrive"
 	"github.com/coreos/coreos-cloudinit/datasource/file"
-	"github.com/coreos/coreos-cloudinit/datasource/metadata/cloudsigma"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/ec2"
 	"github.com/coreos/coreos-cloudinit/datasource/proc_cmdline"
@@ -40,10 +39,8 @@ import (
 )
 
 const (
-	version               = "1.3.3+git"
-	datasourceInterval    = 100 * time.Millisecond
-	datasourceMaxInterval = 30 * time.Second
-	datasourceTimeout     = 5 * time.Minute
+	version            = "1.3.3+git"
+	datasourceInterval = 100 * time.Millisecond
 )
 
 var (
@@ -51,12 +48,12 @@ var (
 		printVersion  bool
 		ignoreFailure bool
 		sources       struct {
-			file                        string
-			configDrive                 string
-			waagent                     string
-			metadataService             bool
-			ec2MetadataService          string
-			cloudSigmaMetadataService   bool
+			file               string
+			configDrive        string
+			waagent            string
+			metadataService    bool
+			ec2MetadataService string
+			//			cloudSigmaMetadataService   bool
 			digitalOceanMetadataService string
 			openstackMetadataService    string
 			url                         string
@@ -67,7 +64,11 @@ var (
 		sshKeyName     string
 		oem            string
 		validate       bool
+		timeout        string
+		dstimeout      string
 	}{}
+	datasourceTimeout     time.Duration
+	datasourceMaxInterval time.Duration
 )
 
 func init() {
@@ -78,7 +79,7 @@ func init() {
 	flag.StringVar(&flags.sources.waagent, "from-waagent", "", "Read data from provided waagent directory")
 	flag.BoolVar(&flags.sources.metadataService, "from-metadata-service", false, "[DEPRECATED - Use -from-ec2-metadata] Download data from metadata service")
 	flag.StringVar(&flags.sources.ec2MetadataService, "from-ec2-metadata", "", "Download EC2 data from the provided url")
-	flag.BoolVar(&flags.sources.cloudSigmaMetadataService, "from-cloudsigma-metadata", false, "Download data from CloudSigma server context")
+	//	flag.BoolVar(&flags.sources.cloudSigmaMetadataService, "from-cloudsigma-metadata", false, "Download data from CloudSigma server context")
 	flag.StringVar(&flags.sources.digitalOceanMetadataService, "from-digitalocean-metadata", "", "Download DigitalOcean data from the provided url")
 	flag.StringVar(&flags.sources.openstackMetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
 	flag.StringVar(&flags.sources.url, "from-url", "", "Download user-data from provided url")
@@ -88,6 +89,9 @@ func init() {
 	flag.StringVar(&flags.workspace, "workspace", "/var/lib/coreos-cloudinit", "Base directory coreos-cloudinit should use to store data")
 	flag.StringVar(&flags.sshKeyName, "ssh-key-name", initialize.DefaultSSHKeyName, "Add SSH keys to the system with the given name")
 	flag.BoolVar(&flags.validate, "validate", false, "[EXPERIMENTAL] Validate the user-data but do not apply it to the system")
+	flag.StringVar(&flags.timeout, "timeout", "60s", "Timeout to wait for all datasource metadata")
+	flag.StringVar(&flags.dstimeout, "dstimeout", "10s", "Timeout to wait for single datasource metadata")
+
 }
 
 type oemConfig map[string]string
@@ -113,13 +117,14 @@ var (
 		"azure": oemConfig{
 			"from-waagent": "/var/lib/waagent",
 		},
-		"cloudsigma": oemConfig{
-			"from-cloudsigma-metadata": "true",
-		},
+		//		"cloudsigma": oemConfig{
+		//			"from-cloudsigma-metadata": "true",
+		//		},
 	}
 )
 
 func main() {
+	var err error
 	failure := false
 
 	flag.Parse()
@@ -140,6 +145,17 @@ func main() {
 	if flags.printVersion == true {
 		fmt.Printf("coreos-cloudinit version %s\n", version)
 		os.Exit(0)
+	}
+
+	datasourceTimeout, err = time.ParseDuration(flags.timeout)
+	if err != nil {
+		fmt.Printf("Invalid value to --timeout: %q\n", err)
+		os.Exit(1)
+	}
+	datasourceMaxInterval, err = time.ParseDuration(flags.dstimeout)
+	if err != nil {
+		fmt.Printf("Invalid value to --dstimeout: %q\n", err)
+		os.Exit(1)
 	}
 
 	switch flags.convertNetconf {
@@ -288,9 +304,9 @@ func getDatasources() []datasource.Datasource {
 	if flags.sources.ec2MetadataService != "" {
 		dss = append(dss, ec2.NewDatasource(flags.sources.ec2MetadataService))
 	}
-	if flags.sources.cloudSigmaMetadataService {
-		dss = append(dss, cloudsigma.NewServerContextService())
-	}
+	//	if flags.sources.cloudSigmaMetadataService {
+	//		dss = append(dss, cloudsigma.NewServerContextService())
+	//	}
 	if flags.sources.digitalOceanMetadataService != "" {
 		dss = append(dss, digitalocean.NewDatasource(flags.sources.digitalOceanMetadataService))
 	}

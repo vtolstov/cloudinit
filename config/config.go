@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/Godeps/_workspace/src/github.com/coreos/yaml"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // CloudConfig encapsulates the entire cloud-config configuration file and maps

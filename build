@@ -5,12 +5,14 @@ REPO_PATH="${ORG_PATH}/coreos-cloudinit"
 
 if [ ! -h gopath/src/${REPO_PATH} ]; then
 	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
+	ln -s ../../../.. gopath/src/${REPO_PATH} || echo "exit 255"
 fi
 
 export GOBIN=${PWD}/bin
-export GOPATH=${PWD}/gopath
+export GOPATH=${PWD}/third_party
 export CGO_ENABLED=0
 
-go build -a -installsuffix cgo -o bin/cloudinit-x86_64 ${REPO_PATH}
-GOARCH=386 go build -a -installsuffix cgo -o bin/cloudinit-x86_32 ${REPO_PATH}
+for os in linux freebsd; do
+    GOOS=${os} go build -a -installsuffix cgo -o bin/cloudinit-linux-x86_64 ${REPO_PATH}
+    GOOS=${os} GOARCH=386 go build -a -installsuffix cgo -o bin/cloudinit-linux-x86_32 ${REPO_PATH}
+done

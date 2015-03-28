@@ -18,15 +18,22 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"os/user"
 	"strings"
 
 	"github.com/coreos/coreos-cloudinit/config"
 )
 
+func UserHome(name string) (string, error) {
+	output, err := exec.Command("getent", "passwd", name).CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	passwd := strings.Split(output, ":")
+	return passwd[5], nil
+}
+
 func UserExists(u *config.User) bool {
-	_, err := user.Lookup(u.Name)
-	return err == nil
+	return exec.Command("getent", "shadow", u.Name).Run() == nil
 }
 
 func CreateUser(u *config.User) error {

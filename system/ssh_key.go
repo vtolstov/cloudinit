@@ -31,14 +31,12 @@ func AuthorizeSSHKeys(user string, keysName string, keys []string) error {
 	// also ends with a newline
 	joined := fmt.Sprintf("%s\n", strings.Join(keys, "\n"))
 
-	authorized_file := ""
-	switch user {
-	case "root":
-		authorized_file = "/root/.ssh/authorized_keys"
-	default:
-		authorized_file = fmt.Sprintf("/home/%s/.ssh/authorized_keys", user)
+	home, err := UserHome(user)
+	if err != nil {
+		return err
 	}
 
+	authorized_file := fmt.Sprintf("%s/.ssh/authorized_keys", home)
 	f, err := os.OpenFile(authorized_file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
