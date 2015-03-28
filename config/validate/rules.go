@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/vtolstov/cloudinit/config"
 )
 
 type rule func(config node, report *Report)

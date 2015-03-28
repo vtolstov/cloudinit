@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/vtolstov/cloudinit/config"
 
 	yaml "gopkg.in/yaml.v2"
 )

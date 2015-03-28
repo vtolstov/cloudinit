@@ -20,7 +20,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/vtolstov/cloudinit/config"
 )
 
 const DefaultIpv4Address = "127.0.0.1"

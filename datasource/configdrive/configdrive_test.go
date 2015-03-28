@@ -18,8 +18,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coreos/coreos-cloudinit/datasource"
-	"github.com/coreos/coreos-cloudinit/datasource/test"
+	"github.com/vtolstov/cloudinit/datasource"
+	"github.com/vtolstov/cloudinit/datasource/test"
 )
 
 func TestFetchMetadata(t *testing.T) {

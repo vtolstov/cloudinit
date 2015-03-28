@@ -17,7 +17,7 @@ package metadata
 import (
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/pkg"
+	"github.com/vtolstov/cloudinit/pkg"
 )
 
 type MetadataService struct {

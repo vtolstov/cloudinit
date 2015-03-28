@@ -21,9 +21,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/config"
-	"github.com/coreos/coreos-cloudinit/datasource"
-	"github.com/coreos/coreos-cloudinit/system"
+	"github.com/vtolstov/cloudinit/config"
+	"github.com/vtolstov/cloudinit/datasource"
+	"github.com/vtolstov/cloudinit/system"
 )
 
 const DefaultSSHKeyName = "coreos-cloudinit"

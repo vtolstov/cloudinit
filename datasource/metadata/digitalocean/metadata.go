@@ -19,8 +19,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/coreos/coreos-cloudinit/datasource"
-	"github.com/coreos/coreos-cloudinit/datasource/metadata"
+	"github.com/vtolstov/cloudinit/datasource"
+	"github.com/vtolstov/cloudinit/datasource/metadata"
 )
 
 const (

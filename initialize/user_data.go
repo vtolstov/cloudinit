@@ -18,7 +18,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/vtolstov/cloudinit/config"
 )
 
 func ParseUserData(contents string) (interface{}, error) {

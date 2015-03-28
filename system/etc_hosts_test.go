@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/vtolstov/cloudinit/config"
 )
 
 func TestEtcdHostsFile(t *testing.T) {

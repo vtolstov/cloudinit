@@ -21,8 +21,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/config"
-	"github.com/coreos/coreos-cloudinit/network"
+	"github.com/vtolstov/cloudinit/config"
+	"github.com/vtolstov/cloudinit/network"
 	"github.com/vishvananda/netlink"
 )
 

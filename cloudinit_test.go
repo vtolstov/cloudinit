@@ -18,8 +18,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coreos/coreos-cloudinit/config"
-	"github.com/coreos/coreos-cloudinit/datasource"
+	"github.com/vtolstov/cloudinit/config"
+	"github.com/vtolstov/cloudinit/datasource"
 )
 
 func TestMergeConfigs(t *testing.T) {

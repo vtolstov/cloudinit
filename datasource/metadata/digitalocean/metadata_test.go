@@ -20,10 +20,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coreos/coreos-cloudinit/datasource"
-	"github.com/coreos/coreos-cloudinit/datasource/metadata"
-	"github.com/coreos/coreos-cloudinit/datasource/metadata/test"
-	"github.com/coreos/coreos-cloudinit/pkg"
+	"github.com/vtolstov/cloudinit/datasource"
+	"github.com/vtolstov/cloudinit/datasource/metadata"
+	"github.com/vtolstov/cloudinit/datasource/metadata/test"
+	"github.com/vtolstov/cloudinit/pkg"
 )
 
 func TestType(t *testing.T) {
