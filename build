@@ -6,6 +6,7 @@ REPO_PATH="${ORG_PATH}/cloudinit"
 export GOBIN=${PWD}/bin
 export GOPATH=${PWD}/third_party
 export CGO_ENABLED=0
+mkdir -p $GOBIN
 
 if [ ! -h $GOPATH/src/${REPO_PATH} ]; then
         mkdir -p $GOPATH/src/${ORG_PATH}
@@ -13,6 +14,6 @@ if [ ! -h $GOPATH/src/${REPO_PATH} ]; then
 fi
 
 for os in linux freebsd; do
-    GOOS=${os} go build -x -a -installsuffix cgo -o bin/cloudinit-linux-x86_64 ${REPO_PATH}
-    GOOS=${os} GOARCH=386 go build -x -a -installsuffix cgo -o bin/cloudinit-linux-x86_32 ${REPO_PATH}
+    GOOS=${os} go build -x -a -installsuffix cgo -o bin/cloudinit-${os}-x86_64 ${REPO_PATH}
+    GOOS=${os} GOARCH=386 go build -x -a -installsuffix cgo -o bin/cloudinit-${os}-x86_32 ${REPO_PATH}
 done

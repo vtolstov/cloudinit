@@ -18,7 +18,6 @@ package openstack
 
 import (
 	"encoding/json"
-	"log"
 	"net"
 	"strconv"
 
@@ -99,7 +98,7 @@ func (ms *metadataService) FetchMetadata() (metadata datasource.Metadata, err er
 			metadata.PrivateIPv6 = net.ParseIP(m.Interfaces.Private[0].IPv6.IPAddress)
 		}
 	}
-	log.Printf("aaa %+v\n", m)
+
 	metadata.Hostname = m.Hostname
 	metadata.SSHPublicKeys = map[string]string{}
 	metadata.SSHPublicKeys[strconv.Itoa(0)] = m.PublicKeys["root"]
