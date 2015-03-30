@@ -36,6 +36,12 @@ func AuthorizeSSHKeys(user string, keysName string, keys []string) error {
 		return err
 	}
 
+	if _, err = os.Stat(home + "/.ssh"); err != nil {
+		if err = os.MkdirAll(home+"/.ssh", os.FileMode(0755)); err != nil {
+			return err
+		}
+	}
+
 	authorized_file := fmt.Sprintf("%s/.ssh/authorized_keys", home)
 	f, err := os.OpenFile(authorized_file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
