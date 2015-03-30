@@ -28,7 +28,7 @@ func UserHome(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	passwd := strings.Split(output, ":")
+	passwd := strings.Split(string(output), ":")
 	return passwd[5], nil
 }
 

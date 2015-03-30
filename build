@@ -1,18 +1,18 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 ORG_PATH="github.com/vtolstov"
 REPO_PATH="${ORG_PATH}/cloudinit"
-
-if [ ! -h gopath/src/${REPO_PATH} ]; then
-	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ../../../.. gopath/src/${REPO_PATH} || echo "exit 255"
-fi
 
 export GOBIN=${PWD}/bin
 export GOPATH=${PWD}/third_party
 export CGO_ENABLED=0
 
+if [ ! -h $GOPATH/src/${REPO_PATH} ]; then
+        mkdir -p $GOPATH/src/${ORG_PATH}
+        ln -s ../../../.. $GOPATH/src/${REPO_PATH} || echo "exit 255"
+fi
+
 for os in linux freebsd; do
-    GOOS=${os} go build -a -installsuffix cgo -o bin/cloudinit-linux-x86_64 ${REPO_PATH}
-    GOOS=${os} GOARCH=386 go build -a -installsuffix cgo -o bin/cloudinit-linux-x86_32 ${REPO_PATH}
+    GOOS=${os} go build -x -a -installsuffix cgo -o bin/cloudinit-linux-x86_64 ${REPO_PATH}
+    GOOS=${os} GOARCH=386 go build -x -a -installsuffix cgo -o bin/cloudinit-linux-x86_32 ${REPO_PATH}
 done
