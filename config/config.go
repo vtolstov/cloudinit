@@ -70,9 +70,9 @@ func IsCloudConfig(userdata string) bool {
 // string of YAML), returning any error encountered. It will ignore unknown
 // fields but log encountering them.
 func NewCloudConfig(contents string) (*CloudConfig, error) {
-	yaml.UnmarshalMappingKeyTransform = func(nameIn string) (nameOut string) {
-		return strings.Replace(nameIn, "-", "_", -1)
-	}
+	//	yaml.UnmarshalMappingKeyTransform = func(nameIn string) (nameOut string) {
+	//		return strings.Replace(nameIn, "-", "_", -1)
+	//	}
 	var cfg CloudConfig
 	err := yaml.Unmarshal([]byte(contents), &cfg)
 	return &cfg, err
