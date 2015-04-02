@@ -30,4 +30,5 @@ type User struct {
 	System               bool     `yaml:"system"`
 	NoLogInit            bool     `yaml:"no_log_init"`
 	LockPasswd           bool     `yaml:"lock_passwd"`
+	Shell                string   `yaml:"shell"`
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/vtolstov/cloudinit/datasource/file"
 	"github.com/vtolstov/cloudinit/datasource/metadata/digitalocean"
 	"github.com/vtolstov/cloudinit/datasource/metadata/ec2"
+	"github.com/vtolstov/cloudinit/datasource/metadata/openstack"
 	"github.com/vtolstov/cloudinit/datasource/proc_cmdline"
 	"github.com/vtolstov/cloudinit/datasource/url"
 	"github.com/vtolstov/cloudinit/datasource/waagent"
@@ -35,11 +36,10 @@ import (
 	"github.com/vtolstov/cloudinit/network"
 	"github.com/vtolstov/cloudinit/pkg"
 	"github.com/vtolstov/cloudinit/system"
-	"github.com/vtolstov/cloudinit/datasource/metadata/openstack"
 )
 
 const (
-	version            = "1.3.3+git"
+	version            = "1.3.4+git"
 	datasourceInterval = 100 * time.Millisecond
 )
 

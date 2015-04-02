@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path"
 
 	"github.com/vtolstov/cloudinit/config"
@@ -43,8 +44,27 @@ type CloudConfigUnit interface {
 // configuring the hostname, adding new users, writing various configuration
 // files to disk, and manipulating systemd services.
 func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Environment) error {
+	var err error
+
+	if cfg.ResizeRootfs {
+		log.Printf("resize root filesystem")
+		if err = system.ResizeRootFS(); err != nil {
+			return err
+		}
+	}
+
+	lockf := path.Join(env.Workspace(), ".lock")
+
+	if _, err = os.Stat(lockf); err == nil {
+		return nil
+	}
+
+	if err = os.MkdirAll(env.Workspace(), os.FileMode(0755)); err != nil {
+		return err
+	}
+
 	if cfg.Hostname != "" {
-		if err := system.SetHostname(cfg.Hostname); err != nil {
+		if err = system.SetHostname(cfg.Hostname); err != nil {
 			return err
 		}
 		log.Printf("Set hostname to %s", cfg.Hostname)
@@ -67,45 +87,45 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 			}
 		} else {
 			log.Printf("Creating user '%s'", user.Name)
-			if err := system.CreateUser(&user); err != nil {
+			if err = system.CreateUser(&user); err != nil {
 				log.Printf("Failed creating user '%s': %v", user.Name, err)
 				return err
 			}
 		}
 
-		if err := system.LockUnlockUser(&user); err != nil {
+		if err = system.LockUnlockUser(&user); err != nil {
 			log.Printf("Failed lock/unlock user '%s': %v", user.Name, err)
 			return err
 		}
 
 		if len(user.SSHAuthorizedKeys) > 0 {
 			log.Printf("Authorizing %d SSH keys for user '%s'", len(user.SSHAuthorizedKeys), user.Name)
-			if err := system.AuthorizeSSHKeys(user.Name, env.SSHKeyName(), user.SSHAuthorizedKeys); err != nil {
+			if err = system.AuthorizeSSHKeys(user.Name, env.SSHKeyName(), user.SSHAuthorizedKeys); err != nil {
 				return err
 			}
 		}
 		if user.SSHImportGithubUser != "" {
 			log.Printf("Authorizing github user %s SSH keys for CoreOS user '%s'", user.SSHImportGithubUser, user.Name)
-			if err := SSHImportGithubUser(user.Name, user.SSHImportGithubUser); err != nil {
+			if err = SSHImportGithubUser(user.Name, user.SSHImportGithubUser); err != nil {
 				return err
 			}
 		}
 		for _, u := range user.SSHImportGithubUsers {
 			log.Printf("Authorizing github user %s SSH keys for CoreOS user '%s'", u, user.Name)
-			if err := SSHImportGithubUser(user.Name, u); err != nil {
+			if err = SSHImportGithubUser(user.Name, u); err != nil {
 				return err
 			}
 		}
 		if user.SSHImportURL != "" {
 			log.Printf("Authorizing SSH keys for CoreOS user '%s' from '%s'", user.Name, user.SSHImportURL)
-			if err := SSHImportKeysFromURL(user.Name, user.SSHImportURL); err != nil {
+			if err = SSHImportKeysFromURL(user.Name, user.SSHImportURL); err != nil {
 				return err
 			}
 		}
 	}
 
 	if len(cfg.SSHAuthorizedKeys) > 0 {
-		err := system.AuthorizeSSHKeys(cfg.SystemInfo.DefaultUser.Name, env.SSHKeyName(), cfg.SSHAuthorizedKeys)
+		err = system.AuthorizeSSHKeys(cfg.SystemInfo.DefaultUser.Name, env.SSHKeyName(), cfg.SSHAuthorizedKeys)
 		if err == nil {
 			log.Printf("Authorized SSH keys for %s user", cfg.SystemInfo.DefaultUser.Name)
 		} else {
@@ -172,13 +192,23 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 
 	if len(ifaces) > 0 {
 		units = append(units, createNetworkingUnits(ifaces)...)
-		if err := system.RestartNetwork(ifaces); err != nil {
+		if err = system.RestartNetwork(ifaces); err != nil {
 			return err
 		}
 	}
 
 	um := system.NewUnitManager(env.Root())
-	return processUnits(units, env.Root(), um)
+	if err = processUnits(units, env.Root(), um); err != nil {
+		return err
+	}
+
+	fp, err := os.OpenFile(lockf, os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, os.FileMode(0644))
+	if err != nil {
+		return err
+	}
+	fp.Close()
+
+	return nil
 }
 
 func createNetworkingUnits(interfaces []network.InterfaceGenerator) (units []system.Unit) {
