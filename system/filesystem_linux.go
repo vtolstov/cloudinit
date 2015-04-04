@@ -89,12 +89,29 @@ func ResizeRootFS() error {
 			return exec.Command("resize2fs", device+partition).Run()
 		}
 	}
-	for _, name := range []string{"partprobe", "kpartx"} {
+
+	args := []string{}
+	for _, name := range []string{"partx", "partprobe", "kpartx"} {
 		if _, err = exec.LookPath(name); err == nil {
-			if err = exec.Command(name, device).Run(); err == nil {
-				return nil
+			switch name {
+			case "partx":
+				args = []string{"-u", device}
+			default:
+				args = []string{device}
 			}
+			log.Printf("update partition table via %s %s", name, strings.Join(args, " "))
+			exec.Command(name, args...).Run()
 		}
 	}
-	return exec.Command("resize2fs", device+partition).Run()
+	log.Printf("resize filesystem via %s %s", "resize2fs", device+partition)
+	err = exec.Command("resize2fs", device+partition).Run()
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"grub-install", "grub2-install"} {
+		if _, err = exec.LookPath(name); err == nil {
+			log.Printf("reinstall grub %s %s", name, device)
+			exec.Command(name, device).Run()
+		}
+	}
 }
