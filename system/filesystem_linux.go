@@ -41,6 +41,17 @@ func ResizeRootFS() error {
 	partstart := "2048"
 	device := mountpoint[:len(mountpoint)-1]
 	partition := mountpoint[len(mountpoint)-1:]
+	mbr := make([]byte, 446)
+
+	f, err := os.OpenFile(device, os.O_RDONLY, os.FileMode(0400))
+	if err != nil {
+		return err
+	}
+	_, err = io.ReadFull(f, mbr)
+	f.Close()
+	if err != nil {
+		return err
+	}
 
 	cmd := exec.Command("fdisk", "-l", "-u", device)
 	stdout, err = cmd.StdoutPipe()
@@ -82,25 +93,31 @@ func ResizeRootFS() error {
 	stdin.Reset()
 
 	w, err := os.OpenFile(device, os.O_WRONLY, 0600)
-	if err == nil {
-		defer w.Close()
-		err = ioctl.BlkRRPart(w.Fd())
-		if err == nil {
-			return exec.Command("resize2fs", device+partition).Run()
-		}
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(mbr)
+	if err != nil {
+		return err
 	}
 
-	args := []string{}
-	for _, name := range []string{"partx", "partprobe", "kpartx"} {
-		if _, err = exec.LookPath(name); err == nil {
-			switch name {
-			case "partx":
-				args = []string{"-u", device}
-			default:
-				args = []string{device}
+	err = ioctl.BlkRRPart(w.Fd())
+	w.Close()
+	if err != nil {
+		args := []string{}
+		for _, name := range []string{"partx", "partprobe", "kpartx"} {
+			if _, err = exec.LookPath(name); err == nil {
+				switch name {
+				case "partx":
+					args = []string{"-u", device}
+				default:
+					args = []string{device}
+				}
+				log.Printf("update partition table via %s %s", name, strings.Join(args, " "))
+				if err = exec.Command(name, args...).Run(); err == nil {
+					break
+				}
 			}
-			log.Printf("update partition table via %s %s", name, strings.Join(args, " "))
-			exec.Command(name, args...).Run()
 		}
 	}
 	log.Printf("resize filesystem via %s %s", "resize2fs", device+partition)
@@ -108,10 +125,5 @@ func ResizeRootFS() error {
 	if err != nil {
 		return err
 	}
-	for _, name := range []string{"grub-install", "grub2-install"} {
-		if _, err = exec.LookPath(name); err == nil {
-			log.Printf("reinstall grub %s %s", name, device)
-			exec.Command(name, device).Run()
-		}
-	}
+	return nil
 }
