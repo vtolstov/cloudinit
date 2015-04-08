@@ -62,17 +62,22 @@ func ResizeRootFS() error {
 	if err = cmd.Wait(); err != nil || partition == "" {
 		return fmt.Errorf("failed to find partition on %s\n", device)
 	}
-	log.Printf("%s %s\n", device, partition)
-	/*
-		echo "sysctl kern.geom.debugflags=16" >> /etc/rc.local
-		echo "gpart resize -i 1 da0" >> /etc/rc.local
-		echo "gpart resize -i 1 da0s1" >> /etc/rc.local
-		echo "true > /dev/da0" >> /etc/rc.local
-		echo "true > /dev/da0s1" >> /etc/rc.local
-		echo "true > /dev/da0s1a" >> /etc/rc.local
-		echo "gpart resize -i 1 da0" >> /etc/rc.local
-		echo "gpart resize -i 1 da0s1" >> /etc/rc.local
-		echo "growfs -y /" >> /etc/rc.local
-	*/
+
+	commands := []string{
+		"sysctl kern.geom.debugflags=16",
+		"gpart resize -i 1 " + strings.Split(device, "/")[2],
+		"gpart resize -i 1 " + strings.Split(device, "/")[2] + partition,
+		"true > " + device,
+		"true > " + device + partition,
+		"true > " + device + partition + "a",
+		"gpart resize -i 1 " + strings.Split(device, "/")[2],
+		"gpart resize -i 1 " + strings.Split(device, "/")[2] + partition,
+		"growfs -y /",
+	}
+
+	for _, command := range commands {
+		log.Printf("resize fs %s\n", command)
+		exec.Command(strings.Split(command, " ")[0], strings.Split(command, " ")[1:]...).Run()
+	}
 	return nil
 }
