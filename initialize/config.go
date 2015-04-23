@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path"
+	"strings"
 
 	"github.com/vtolstov/cloudinit/config"
 	"github.com/vtolstov/cloudinit/network"
@@ -68,6 +70,12 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 			return err
 		}
 		log.Printf("Set hostname to %s", cfg.Hostname)
+	}
+
+	for _, cmdline := range cfg.RunCMD {
+		prog := strings.Fields(cmdline)[0]
+		args := strings.Fields(cmdline)[1:]
+		exec.Command(prog, args...).Run()
 	}
 
 	for _, user := range cfg.Users {
