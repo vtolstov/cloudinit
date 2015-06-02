@@ -22,25 +22,84 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/vtolstov/go-ioctl"
 )
+
+func rootMount() (string, error) {
+	var err error
+	var device string
+
+	f, err := os.Open("/proc/self/mounts")
+	if err != nil {
+		return device, err
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+
+	for {
+		line, err := br.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		fields := strings.Fields(line)
+		if fields[1] != "/" || fields[0][0] != '/' {
+			continue
+		}
+		fi, err := os.Stat(fields[0])
+		if err != nil {
+			return device, err
+		}
+
+		if fi.Mode()&os.ModeSymlink == 0 {
+			device, err = filepath.EvalSymlinks(fields[0])
+			if err != nil {
+				return device, err
+			}
+		} else {
+			device = fields[0]
+		}
+	}
+	return device, nil
+}
+
+func rootDevice() (string, error) {
+	var device string
+
+	mountpoint, err := rootMount()
+	if err != nil {
+		return device, err
+	}
+
+	numstrip := func(r rune) rune {
+		if unicode.IsNumber(r) {
+			return -1
+		}
+		return r
+	}
+	return strings.Map(numstrip, mountpoint), nil
+}
 
 func ResizeRootFS() error {
 	var err error
 	var stdout io.ReadCloser
 	var stdin bytes.Buffer
 
-	output, err := exec.Command("findmnt", "-n", "-o", "source", "/").CombinedOutput()
+	mountpoint, err := rootMount()
 	if err != nil {
 		return err
 	}
 
-	mountpoint := strings.TrimSpace(string(output))
 	partstart := "2048"
-	device := mountpoint[:len(mountpoint)-1]
-	partition := mountpoint[len(mountpoint)-1:]
+	device, err := rootDevice()
+	if err != nil {
+		return err
+	}
+
 	mbr := make([]byte, 446)
 
 	f, err := os.OpenFile(device, os.O_RDONLY, os.FileMode(0400))
@@ -72,7 +131,7 @@ func ResizeRootFS() error {
 			break
 		}
 
-		if strings.HasPrefix(line, device+partition) {
+		if strings.HasPrefix(line, mountpoint) {
 			ps := strings.Fields(line) // /dev/sda1      *      4096   251658239   125827072  83 Linux
 			if ps[1] == "*" {
 				partstart = ps[2]
@@ -120,8 +179,8 @@ func ResizeRootFS() error {
 			}
 		}
 	}
-	log.Printf("resize filesystem via %s %s", "resize2fs", device+partition)
-	err = exec.Command("resize2fs", device+partition).Run()
+	log.Printf("resize filesystem via %s %s", "resize2fs", mountpoint)
+	err = exec.Command("resize2fs", mountpoint).Run()
 	if err != nil {
 		return err
 	}
