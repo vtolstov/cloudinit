@@ -81,13 +81,27 @@ func CreateUser(u *config.User) error {
 	return nil
 }
 
+func IsLockedUser(u *config.User) bool {
+	output, err := exec.Command("getent", "shadow", u.Name).CombinedOutput()
+	if err == nil {
+		fields := strings.Split(string(output), ":")
+		if len(fields[1]) > 1 && fields[1][0] == '!' {
+			return true
+		}
+	}
+	return false
+}
+
 func LockUnlockUser(u *config.User) error {
 	args := []string{}
 
 	if u.LockPasswd {
-		args = append(args, "--lock")
+		args = append(args, "-l")
 	} else {
-		args = append(args, "--unlock")
+		if !IsLockedUser(u) {
+			return nil
+		}
+		args = append(args, "-u")
 	}
 
 	args = append(args, u.Name)
