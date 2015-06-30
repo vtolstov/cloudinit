@@ -159,10 +159,17 @@ func ResizeRootFS() error {
 	if err != nil {
 		return err
 	}
-
-	err = ioctl.BlkRRPart(w.Fd())
-	w.Close()
+	err = w.Sync()
 	if err != nil {
+		return err
+	}
+
+	blkerr := ioctl.BlkRRPart(w.Fd())
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+	if blkerr != nil {
 		args := []string{}
 		for _, name := range []string{"partx", "partprobe", "kpartx"} {
 			if _, err = exec.LookPath(name); err == nil {
