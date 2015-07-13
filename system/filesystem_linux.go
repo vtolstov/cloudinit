@@ -111,7 +111,7 @@ func ResizeRootFS() error {
 	if err = syscall.Mknod(device, uint32(os.ModeDevice|syscall.S_IFBLK|0600), devBlk.Int()); err != nil {
 		return err
 	}
-	defer os.Remove(device)
+	//	defer os.Remove(device)
 	//	mbr := make([]byte, 446)
 
 	/*
@@ -151,16 +151,30 @@ func ResizeRootFS() error {
 			if ps[1] == "*" {
 				active = true
 				partstart, _ = strconv.Atoi(ps[2])
-				parttype = ps[6]
-				if ps[7] == "Extended" {
-					extended = true
+				if len(ps) > 7 {
+					parttype = ps[6]
+					if ps[7] == "Extended" {
+						extended = true
+					}
+				} else {
+					parttype = ps[5]
+					if ps[6] == "Extended" {
+						extended = true
+					}
 				}
 			} else {
 				active = false
 				partstart, _ = strconv.Atoi(ps[1])
-				parttype = ps[5]
-				if ps[6] == "Extended" {
-					extended = true
+				if len(ps) > 6 {
+					parttype = ps[5]
+					if ps[6] == "Extended" {
+						extended = true
+					}
+				} else {
+					parttype = ps[4]
+					if ps[5] == "Extended" {
+						extended = true
+					}
 				}
 			}
 		}
@@ -169,12 +183,15 @@ func ResizeRootFS() error {
 	if err = cmd.Wait(); err != nil || partstart == 0 {
 		return fmt.Errorf("failed to open %s via fdisk 4\n", device)
 	}
-
-	stdin.Write([]byte("d\n" + fmt.Sprintf("%d", partnum) + "\n"))
+	if partnum > 1 {
+		stdin.Write([]byte("d\n" + fmt.Sprintf("%d", partnum) + "\n"))
+	} else {
+		stdin.Write([]byte("d\n"))
+	}
 	if extended {
 		stdin.Write([]byte("n\nl\n" + fmt.Sprintf("%d", partnum) + "\n" + fmt.Sprintf("%d", partstart) + "\n\n"))
 	} else {
-		stdin.Write([]byte("n\np\n" + fmt.Sprintf("%d", partnum) + "\n\n"))
+		stdin.Write([]byte("n\np\n" + fmt.Sprintf("%d", partnum) + "\n" + fmt.Sprintf("%d", partstart) + "\n\n"))
 	}
 	if active {
 		stdin.Write([]byte("a\n" + fmt.Sprintf("%d", partnum) + "\n"))
@@ -225,7 +242,7 @@ func ResizeRootFS() error {
 	if err = syscall.Mknod(partition, uint32(os.ModeDevice|syscall.S_IFBLK|0600), devFs.Int()); err != nil {
 		return err
 	}
-	defer os.Remove(partition)
+	//	defer os.Remove(partition)
 	log.Printf("resize filesystem via %s %s", "resize2fs", partition)
 	buf, err := exec.Command("resize2fs", partition).CombinedOutput()
 	if err != nil {
