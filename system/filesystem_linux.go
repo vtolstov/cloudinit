@@ -108,10 +108,11 @@ func ResizeRootFS() error {
 	if err != nil {
 		return err
 	}
+	os.Remove(device)
 	if err = syscall.Mknod(device, uint32(os.ModeDevice|syscall.S_IFBLK|0600), devBlk.Int()); err != nil {
 		return err
 	}
-	//	defer os.Remove(device)
+	defer os.Remove(device)
 	//	mbr := make([]byte, 446)
 
 	/*
@@ -196,7 +197,11 @@ func ResizeRootFS() error {
 	if active {
 		stdin.Write([]byte("a\n" + fmt.Sprintf("%d", partnum) + "\n"))
 	}
-	stdin.Write([]byte("t\n" + fmt.Sprintf("%d", partnum) + "\n" + parttype + "\nw"))
+	if partnum > 1 {
+		stdin.Write([]byte("t\n" + fmt.Sprintf("%d", partnum) + "\n" + parttype + "\nw"))
+	} else {
+		stdin.Write([]byte("t\n" + parttype + "\nw"))
+	}
 	cmd = exec.Command("fdisk", "-u", device)
 	cmd.Stdin = &stdin
 	cmd.Run()
@@ -238,11 +243,11 @@ func ResizeRootFS() error {
 			}
 		}
 	}
-
+	os.Remove(partition)
 	if err = syscall.Mknod(partition, uint32(os.ModeDevice|syscall.S_IFBLK|0600), devFs.Int()); err != nil {
 		return err
 	}
-	//	defer os.Remove(partition)
+	defer os.Remove(partition)
 	log.Printf("resize filesystem via %s %s", "resize2fs", partition)
 	buf, err := exec.Command("resize2fs", partition).CombinedOutput()
 	if err != nil {
