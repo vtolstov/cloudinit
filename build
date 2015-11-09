@@ -12,7 +12,7 @@ export GOBIN=${PWD}/bin
 export GOPATH=${PWD}/gopath
 mkdir -p $GOBIN
 mkdir -p $GOPATH
-mkdir -p bin
+mkdir -p bin tmp
 
 go version | grep -q go1.5
 
