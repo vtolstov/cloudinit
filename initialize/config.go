@@ -55,6 +55,12 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 		}
 	}
 
+	for _, cmdline := range cfg.RunCMD {
+		prog := strings.Fields(cmdline)[0]
+		args := strings.Fields(cmdline)[1:]
+		exec.Command(prog, args...).Run()
+	}
+
 	lockf := path.Join(env.Workspace(), ".lock")
 
 	if _, err = os.Stat(lockf); err == nil {
@@ -70,12 +76,6 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 			return err
 		}
 		log.Printf("Set hostname to %s", cfg.Hostname)
-	}
-
-	for _, cmdline := range cfg.RunCMD {
-		prog := strings.Fields(cmdline)[0]
-		args := strings.Fields(cmdline)[1:]
-		exec.Command(prog, args...).Run()
 	}
 
 	for _, user := range cfg.Users {
