@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -x
 
 ORG_PATH="github.com/coreos"
 REPO_PATH="${ORG_PATH}/coreos-cloudinit"
@@ -29,7 +29,9 @@ if [ ! -h $GOPATH/src/${REPO_PATH} ]; then
         ln -s ../../../.. $GOPATH/src/${REPO_PATH} || echo "exit 255"
 fi
 
-for os in linux freebsd netbsd openbsd; do
+set -e
+
+for os in linux freebsd netbsd openbsd windows; do
     GOOS=${os} go build -x -ldflags "${GLDFLAGS}" -tags netgo -o bin/cloudinit-${os}-x86_64 ${REPO_PATH}
     GOOS=${os} GOARCH=386 go build -x -ldflags "${GLDFLAGS}" -tags netgo -o bin/cloudinit-${os}-x86_32 ${REPO_PATH}
 done
