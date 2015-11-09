@@ -18,9 +18,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/vtolstov/cloudinit/config"
-	"github.com/vtolstov/cloudinit/network"
-	"github.com/vtolstov/cloudinit/system"
+	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/network"
+	"github.com/coreos/coreos-cloudinit/system"
 )
 
 type TestUnitManager struct {

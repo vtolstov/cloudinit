@@ -39,7 +39,7 @@ import (
 	"github.com/coreos/coreos-cloudinit/network"
 	"github.com/coreos/coreos-cloudinit/pkg"
 	"github.com/coreos/coreos-cloudinit/system"
-	"github.com/vtolstov/cloudinit/datasource/metadata/openstack"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/openstack"
 )
 
 const (

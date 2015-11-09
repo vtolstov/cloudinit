@@ -21,8 +21,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/vtolstov/cloudinit/datasource"
-	"github.com/vtolstov/cloudinit/datasource/metadata"
+	"github.com/coreos/coreos-cloudinit/datasource"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata"
 )
 
 const (

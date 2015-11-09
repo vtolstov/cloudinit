@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/vtolstov/cloudinit/datasource/metadata"
-	"github.com/vtolstov/cloudinit/datasource/metadata/test"
-	"github.com/vtolstov/cloudinit/pkg"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/test"
+	"github.com/coreos/coreos-cloudinit/pkg"
 )
 
 func TestType(t *testing.T) {

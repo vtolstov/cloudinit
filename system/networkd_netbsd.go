@@ -14,7 +14,7 @@
 
 package system
 
-import "github.com/vtolstov/cloudinit/network"
+import "github.com/coreos/coreos-cloudinit/network"
 
 func RestartNetwork(interfaces []network.InterfaceGenerator) (err error) {
 	return nil

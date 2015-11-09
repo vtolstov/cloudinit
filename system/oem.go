@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/vtolstov/cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/config"
 )
 
 // OEM is a top-level structure which embeds its underlying configuration,

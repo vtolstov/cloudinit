@@ -23,7 +23,7 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/vtolstov/cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/config"
 )
 
 // File is a top-level structure which embeds its underlying configuration,

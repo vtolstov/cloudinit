@@ -21,8 +21,8 @@ import (
 	"strings"
 
 	"github.com/vishvananda/netlink"
-	"github.com/vtolstov/cloudinit/config"
-	"github.com/vtolstov/cloudinit/network"
+	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/network"
 )
 
 func RestartNetwork(interfaces []network.InterfaceGenerator) (err error) {

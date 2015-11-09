@@ -22,9 +22,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/vtolstov/cloudinit/datasource"
-	"github.com/vtolstov/cloudinit/datasource/metadata"
-	"github.com/vtolstov/cloudinit/pkg"
+	"github.com/coreos/coreos-cloudinit/datasource"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata"
+	"github.com/coreos/coreos-cloudinit/pkg"
 )
 
 const (

@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/vtolstov/cloudinit/datasource/metadata/digitalocean"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
 )
 
 func TestParseNameservers(t *testing.T) {

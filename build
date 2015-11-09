@@ -1,7 +1,7 @@
 #!/bin/bash -ex
 
-ORG_PATH="github.com/vtolstov"
-REPO_PATH="${ORG_PATH}/cloudinit"
+ORG_PATH="github.com/coreos"
+REPO_PATH="${ORG_PATH}/coreos-cloudinit"
 VERSION=$(git describe --tags)
 GLDFLAGS="-X main.version \"${VERSION}\""
 

@@ -18,7 +18,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/vtolstov/cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/config"
 )
 
 var (

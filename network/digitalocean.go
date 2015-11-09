@@ -19,7 +19,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/vtolstov/cloudinit/datasource/metadata/digitalocean"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
 )
 
 func ProcessDigitalOceanNetconf(config digitalocean.Metadata) ([]InterfaceGenerator, error) {

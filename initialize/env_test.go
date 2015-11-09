@@ -21,8 +21,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/vtolstov/cloudinit/datasource"
-	"github.com/vtolstov/cloudinit/system"
+	"github.com/coreos/coreos-cloudinit/datasource"
+	"github.com/coreos/coreos-cloudinit/system"
 )
 
 func TestEnvironmentApply(t *testing.T) {
