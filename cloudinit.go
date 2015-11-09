@@ -17,30 +17,35 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
-	"github.com/vtolstov/cloudinit/config"
-	"github.com/vtolstov/cloudinit/config/validate"
-	"github.com/vtolstov/cloudinit/datasource"
-	"github.com/vtolstov/cloudinit/datasource/configdrive"
-	"github.com/vtolstov/cloudinit/datasource/file"
-	"github.com/vtolstov/cloudinit/datasource/metadata/digitalocean"
-	"github.com/vtolstov/cloudinit/datasource/metadata/ec2"
+	"github.com/coreos/coreos-cloudinit/config"
+	"github.com/coreos/coreos-cloudinit/config/validate"
+	"github.com/coreos/coreos-cloudinit/datasource"
+	"github.com/coreos/coreos-cloudinit/datasource/configdrive"
+	"github.com/coreos/coreos-cloudinit/datasource/file"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/ec2"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/packet"
+	"github.com/coreos/coreos-cloudinit/datasource/proc_cmdline"
+	"github.com/coreos/coreos-cloudinit/datasource/url"
+	"github.com/coreos/coreos-cloudinit/datasource/vmware"
+	"github.com/coreos/coreos-cloudinit/datasource/waagent"
+	"github.com/coreos/coreos-cloudinit/initialize"
+	"github.com/coreos/coreos-cloudinit/network"
+	"github.com/coreos/coreos-cloudinit/pkg"
+	"github.com/coreos/coreos-cloudinit/system"
 	"github.com/vtolstov/cloudinit/datasource/metadata/openstack"
-	"github.com/vtolstov/cloudinit/datasource/proc_cmdline"
-	"github.com/vtolstov/cloudinit/datasource/url"
-	"github.com/vtolstov/cloudinit/datasource/waagent"
-	"github.com/vtolstov/cloudinit/initialize"
-	"github.com/vtolstov/cloudinit/network"
-	"github.com/vtolstov/cloudinit/pkg"
-	"github.com/vtolstov/cloudinit/system"
 )
 
 const (
-	version            = "1.3.4+git"
-	datasourceInterval = 100 * time.Millisecond
+	datasourceInterval    = 100 * time.Millisecond
+	datasourceMaxInterval = 30 * time.Second
+	datasourceTimeout     = 5 * time.Minute
 )
 
 var (
@@ -55,9 +60,10 @@ var (
 			ec2MetadataService string
 			//			cloudSigmaMetadataService   bool
 			digitalOceanMetadataService string
-			openstackMetadataService    string
+			packetMetadataService       string
 			url                         string
 			procCmdLine                 bool
+			vmware                      bool
 		}
 		convertNetconf string
 		workspace      string
@@ -67,8 +73,7 @@ var (
 		timeout        string
 		dstimeout      string
 	}{}
-	datasourceTimeout     time.Duration
-	datasourceMaxInterval time.Duration
+	version = "was not built properly"
 )
 
 func init() {
@@ -81,8 +86,10 @@ func init() {
 	//	flag.BoolVar(&flags.sources.cloudSigmaMetadataService, "from-cloudsigma-metadata", false, "Download data from CloudSigma server context")
 	flag.StringVar(&flags.sources.digitalOceanMetadataService, "from-digitalocean-metadata", "", "Download DigitalOcean data from the provided url")
 	flag.StringVar(&flags.sources.openstackMetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
+	flag.StringVar(&flags.sources.packetMetadataService, "from-packet-metadata", "", "Download Packet data from metadata service")
 	flag.StringVar(&flags.sources.url, "from-url", "", "Download user-data from provided url")
 	flag.BoolVar(&flags.sources.procCmdLine, "from-proc-cmdline", false, fmt.Sprintf("Parse %s for '%s=<url>', using the cloud-config served by an HTTP GET to <url>", proc_cmdline.ProcCmdlineLocation, proc_cmdline.ProcCmdlineCloudConfigFlag))
+	flag.BoolVar(&flags.sources.vmware, "from-vmware-guestinfo", false, "Read data from VMware guestinfo")
 	flag.StringVar(&flags.oem, "oem", "", "Use the settings specific to the provided OEM")
 	flag.StringVar(&flags.convertNetconf, "convert-netconf", "", "Read the network config provided in cloud-drive and translate it from the specified format into networkd unit files")
 	flag.StringVar(&flags.workspace, "workspace", "/var/lib/cloudinit", "Base directory where cloudinit should use to store data")
@@ -116,15 +123,28 @@ var (
 		"azure": oemConfig{
 			"from-waagent": "/var/lib/waagent",
 		},
-		//		"cloudsigma": oemConfig{
-		//			"from-cloudsigma-metadata": "true",
-		//		},
+		"cloudsigma": oemConfig{
+			"from-cloudsigma-metadata": "true",
+		},
+		"packet": oemConfig{
+			"from-packet-metadata": "https://metadata.packet.net/",
+		},
+		"vmware": oemConfig{
+			"from-vmware-guestinfo": "true",
+			"convert-netconf":       "vmware",
+		},
 	}
 )
 
 func main() {
 	var err error
 	failure := false
+
+	// Conservative Go 1.5 upgrade strategy:
+	// keep GOMAXPROCS' default at 1 for now.
+	if os.Getenv("GOMAXPROCS") == "" {
+		runtime.GOMAXPROCS(1)
+	}
 
 	flag.Parse()
 
@@ -137,12 +157,12 @@ func main() {
 		for k := range oemConfigs {
 			oems = append(oems, k)
 		}
-		fmt.Printf("Invalid option to --oem: %q. Supported options: %q\n", flags.oem, oems)
+		fmt.Printf("Invalid option to -oem: %q. Supported options: %q\n", flags.oem, oems)
 		os.Exit(2)
 	}
 
 	if flags.printVersion == true {
-		fmt.Printf("coreos-cloudinit version %s\n", version)
+		fmt.Printf("coreos-cloudinit %s\n", version)
 		os.Exit(0)
 	}
 
@@ -161,50 +181,52 @@ func main() {
 	case "":
 	case "debian":
 	case "digitalocean":
+	case "packet":
+	case "vmware":
 	default:
-		fmt.Printf("Invalid option to -convert-netconf: '%s'. Supported options: 'debian, digitalocean'\n", flags.convertNetconf)
+		fmt.Printf("Invalid option to -convert-netconf: '%s'. Supported options: 'debian, digitalocean, packet, vmware'\n", flags.convertNetconf)
 		os.Exit(2)
 	}
 
 	dss := getDatasources()
 	if len(dss) == 0 {
-		fmt.Println("Provide at least one of --from-file, --from-configdrive, --from-ec2-metadata, --from-digitalocean-metadata, --from-openstack-metadata --from-cloudsigma-metadata, --from-url or --from-proc-cmdline")
+		fmt.Println("Provide at least one of -from-file, -from-configdrive, -from-ec2-metadata, -from-cloudsigma-metadata, --from-openstack-metadata-from-packet-metadata, -from-digitalocean-metadata, -from-vmware-guestinfo, -from-waagent, -from-url or -from-proc-cmdline")
 		os.Exit(2)
 	}
 
 	ds := selectDatasource(dss)
 	if ds == nil {
-		fmt.Println("No datasources available in time")
+		log.Println("No datasources available in time")
 		os.Exit(1)
 	}
 
-	fmt.Printf("Fetching user-data from datasource of type %q\n", ds.Type())
+	log.Printf("Fetching user-data from datasource of type %q\n", ds.Type())
 	userdataBytes, err := ds.FetchUserdata()
 	if err != nil {
-		fmt.Printf("Failed fetching user-data from datasource: %v\nContinuing...\n", err)
+		log.Printf("Failed fetching user-data from datasource: %v. Continuing...\n", err)
 		failure = true
 	}
 
 	if report, err := validate.Validate(userdataBytes); err == nil {
 		ret := 0
 		for _, e := range report.Entries() {
-			fmt.Println(e)
+			log.Println(e)
 			ret = 1
 		}
 		if flags.validate {
 			os.Exit(ret)
 		}
 	} else {
-		fmt.Printf("Failed while validating user_data (%q)\n", err)
+		log.Printf("Failed while validating user_data (%q)\n", err)
 		if flags.validate {
 			os.Exit(1)
 		}
 	}
 
-	fmt.Printf("Fetching meta-data from datasource of type %q\n", ds.Type())
+	log.Printf("Fetching meta-data from datasource of type %q\n", ds.Type())
 	metadata, err := ds.FetchMetadata()
 	if err != nil {
-		fmt.Printf("Failed fetching meta-data from datasource: %v\n", err)
+		log.Printf("Failed fetching meta-data from datasource: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -214,19 +236,23 @@ func main() {
 
 	var ccu *config.CloudConfig
 	var script *config.Script
-	if ud, err := initialize.ParseUserData(userdata); err != nil {
-		fmt.Printf("Failed to parse user-data: %v\nContinuing...\n", err)
-		failure = true
-	} else {
+	switch ud, err := initialize.ParseUserData(userdata); err {
+	case initialize.ErrIgnitionConfig:
+		fmt.Printf("Detected an Ignition config. Exiting...")
+		os.Exit(0)
+	case nil:
 		switch t := ud.(type) {
 		case *config.CloudConfig:
 			ccu = t
 		case *config.Script:
 			script = t
 		}
+	default:
+		fmt.Printf("Failed to parse user-data: %v\nContinuing...\n", err)
+		failure = true
 	}
 
-	fmt.Println("Merging cloud-config from meta-data and user-data")
+	log.Println("Merging cloud-config from meta-data and user-data")
 	cc := mergeConfigs(ccu, metadata)
 
 	var ifaces []network.InterfaceGenerator
@@ -234,26 +260,30 @@ func main() {
 		var err error
 		switch flags.convertNetconf {
 		case "debian":
-			ifaces, err = network.ProcessDebianNetconf(metadata.NetworkConfig)
+			ifaces, err = network.ProcessDebianNetconf(metadata.NetworkConfig.([]byte))
 		case "digitalocean":
-			ifaces, err = network.ProcessDigitalOceanNetconf(metadata.NetworkConfig)
+			ifaces, err = network.ProcessDigitalOceanNetconf(metadata.NetworkConfig.(digitalocean.Metadata))
+		case "packet":
+			ifaces, err = network.ProcessPacketNetconf(metadata.NetworkConfig.(packet.NetworkData))
+		case "vmware":
+			ifaces, err = network.ProcessVMwareNetconf(metadata.NetworkConfig.(map[string]string))
 		default:
 			err = fmt.Errorf("Unsupported network config format %q", flags.convertNetconf)
 		}
 		if err != nil {
-			fmt.Printf("Failed to generate interfaces: %v\n", err)
+			log.Printf("Failed to generate interfaces: %v\n", err)
 			os.Exit(1)
 		}
 	}
 
 	if err = initialize.Apply(cc, ifaces, env); err != nil {
-		fmt.Printf("Failed to apply cloud-config: %v\n", err)
+		log.Printf("Failed to apply cloud-config: %v\n", err)
 		os.Exit(1)
 	}
 
 	if script != nil {
 		if err = runScript(*script, env); err != nil {
-			fmt.Printf("Failed to run script: %v\n", err)
+			log.Printf("Failed to run script: %v\n", err)
 			os.Exit(1)
 		}
 	}
@@ -273,7 +303,7 @@ func mergeConfigs(cc *config.CloudConfig, md datasource.Metadata) (out config.Cl
 
 	if md.Hostname != "" {
 		if out.Hostname != "" {
-			fmt.Printf("Warning: user-data hostname (%s) overrides metadata hostname (%s)\n", out.Hostname, md.Hostname)
+			log.Printf("Warning: user-data hostname (%s) overrides metadata hostname (%s)\n", out.Hostname, md.Hostname)
 		} else {
 			out.Hostname = md.Hostname
 		}
@@ -315,8 +345,14 @@ func getDatasources() []datasource.Datasource {
 	if flags.sources.waagent != "" {
 		dss = append(dss, waagent.NewDatasource(flags.sources.waagent))
 	}
+	if flags.sources.packetMetadataService != "" {
+		dss = append(dss, packet.NewDatasource(flags.sources.packetMetadataService))
+	}
 	if flags.sources.procCmdLine {
 		dss = append(dss, proc_cmdline.NewDatasource())
+	}
+	if flags.sources.vmware {
+		dss = append(dss, vmware.NewDatasource())
 	}
 	return dss
 }
@@ -338,7 +374,7 @@ func selectDatasource(sources []datasource.Datasource) datasource.Datasource {
 
 			duration := datasourceInterval
 			for {
-				fmt.Printf("Checking availability of %q\n", s.Type())
+				log.Printf("Checking availability of %q\n", s.Type())
 				if s.IsAvailable() {
 					ds <- s
 					return
@@ -376,7 +412,7 @@ func selectDatasource(sources []datasource.Datasource) datasource.Datasource {
 func runScript(script config.Script, env *initialize.Environment) error {
 	err := initialize.PrepWorkspace(env.Workspace())
 	if err != nil {
-		fmt.Printf("Failed preparing workspace: %v\n", err)
+		log.Printf("Failed preparing workspace: %v\n", err)
 		return err
 	}
 	path, err := initialize.PersistScriptInWorkspace(script, env.Workspace())

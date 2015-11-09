@@ -2,6 +2,8 @@
 
 ORG_PATH="github.com/vtolstov"
 REPO_PATH="${ORG_PATH}/cloudinit"
+VERSION=$(git describe --tags)
+GLDFLAGS="-X main.version \"${VERSION}\""
 
 rm -rf bin tmp
 
@@ -28,6 +30,6 @@ if [ ! -h $GOPATH/src/${REPO_PATH} ]; then
 fi
 
 for os in linux freebsd netbsd openbsd; do
-    GOOS=${os} go build -x  -tags netgo -o bin/cloudinit-${os}-x86_64 ${REPO_PATH}
-    GOOS=${os} GOARCH=386 go build -x  -tags netgo -o bin/cloudinit-${os}-x86_32 ${REPO_PATH}
+    GOOS=${os} go build -x -ldflags "${GLDFLAGS}" -tags netgo -o bin/cloudinit-${os}-x86_64 ${REPO_PATH}
+    GOOS=${os} GOARCH=386 go build -x -ldflags "${GLDFLAGS}" -tags netgo -o bin/cloudinit-${os}-x86_32 ${REPO_PATH}
 done

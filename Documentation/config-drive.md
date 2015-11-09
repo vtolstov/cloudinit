@@ -4,7 +4,7 @@ CoreOS supports providing configuration data via [config drive][config-drive]
 disk images. Currently only providing a single script or cloud config file is
 supported.
 
-[config-drive]: http://docs.openstack.org/user-guide/content/enable_config_drive.html#config_drive_contents
+[config-drive]: http://docs.openstack.org/user-guide/cli_config_drive.html
 
 ## Contents and Format
 
@@ -19,6 +19,12 @@ mkdir -p /tmp/new-drive/openstack/latest
 cp user_data /tmp/new-drive/openstack/latest/user_data
 mkisofs -R -V config-2 -o configdrive.iso /tmp/new-drive
 rm -r /tmp/new-drive
+```
+
+If on OS X, replace the `mkisofs` invocation with:
+
+```sh
+hdiutil makehybrid -iso -joliet -default-volume-name config-2 -o configdrive.iso /tmp/new-drive
 ```
 
 ## QEMU virtfs

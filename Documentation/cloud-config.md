@@ -4,6 +4,14 @@ CoreOS allows you to declaratively customize various OS-level items, such as net
 
 Your cloud-config is processed during each boot. Invalid cloud-config won't be processed but will be logged in the journal. You can validate your cloud-config with the [CoreOS validator]({{site.url}}/validate) or by running `coreos-cloudinit -validate`.
 
+In addition to `coreos-cloudinit -validate` command and https://coreos.com/validate/ online service you can debug `coreos-cloudinit` system output through the `journalctl` tool:
+
+```sh
+journalctl _EXE=/usr/bin/coreos-cloudinit
+```
+
+It will show `coreos-cloudinit` run output which was triggered by system boot.
+
 ## Configuration File
 
 The file used by this system initialization program is called a "cloud-config" file. It is inspired by the [cloud-init][cloud-init] project's [cloud-config][cloud-config] file, which is "the defacto multi-distribution package that handles early initialization of a cloud instance" ([cloud-init docs][cloud-init-docs]). Because the cloud-init project includes tools which aren't used by CoreOS, only the relevant subset of its configuration items will be implemented in our cloud-config file. In addition to those, we added a few CoreOS-specific items, such as etcd configuration, OEM definition, and systemd units.
@@ -18,7 +26,7 @@ We've designed our implementation to allow the same cloud-config file to work ac
 
 The cloud-config file uses the [YAML][yaml] file format, which uses whitespace and new-lines to delimit lists, associative arrays, and values.
 
-A cloud-config file must contain `#cloud-config`, followed by an associative array which has zero or more of the following keys:
+A cloud-config file must contain a header: either `#cloud-config` for processing as cloud-config (suggested) or `#!` for processing as a shell script (advanced). If cloud-config has #cloud-config header, it should followed by an associative array which has zero or more of the following keys:
 
 - `coreos`
 - `ssh_authorized_keys`
@@ -28,6 +36,8 @@ A cloud-config file must contain `#cloud-config`, followed by an associative arr
 - `manage_etc_hosts`
 
 The expected values for these keys are defined in the rest of this document.
+
+If cloud-config header starts on `#!` then coreos-cloudinit will recognize it as shell script which is interpreted by bash and run it as transient systemd service.
 
 [yaml]: https://en.wikipedia.org/wiki/YAML
 
@@ -39,7 +49,7 @@ CoreOS tries to conform to each platform's native method to provide user data. E
 
 ### coreos
 
-#### etcd
+#### etcd (deprecated. see etcd2)
 
 The `coreos.etcd.*` parameters will be translated to a partial systemd unit acting as an etcd configuration file.
 If the platform environment supports the templating feature of coreos-cloudinit it is possible to automate etcd configuration with the `$private_ipv4` and `$public_ipv4` fields. For example, the following cloud-config document...
@@ -49,15 +59,15 @@ If the platform environment supports the templating feature of coreos-cloudinit 
 
 coreos:
   etcd:
-      name: node001
-      # generate a new token for each unique cluster from https://discovery.etcd.io/new
-      discovery: https://discovery.etcd.io/<token>
-      # multi-region and multi-cloud deployments need to use $public_ipv4
-      addr: $public_ipv4:4001
-      peer-addr: $private_ipv4:7001
+    name: "node001"
+    # generate a new token for each unique cluster from https://discovery.etcd.io/new
+    discovery: "https://discovery.etcd.io/<token>"
+    # multi-region and multi-cloud deployments need to use $public_ipv4
+    addr: "$public_ipv4:4001"
+    peer-addr: "$private_ipv4:7001"
 ```
 
-...will generate a systemd unit drop-in like this:
+...will generate a systemd unit drop-in for etcd.service with the following contents:
 
 ```yaml
 [Service]
@@ -71,19 +81,59 @@ For more information about the available configuration parameters, see the [etcd
 
 _Note: The `$private_ipv4` and `$public_ipv4` substitution variables referenced in other documents are only supported on Amazon EC2, Google Compute Engine, OpenStack, Rackspace, DigitalOcean, and Vagrant._
 
-[etcd-config]: https://github.com/coreos/etcd/blob/master/Documentation/configuration.md
+[etcd-config]: https://github.com/coreos/etcd/blob/9fa3bea5a22265151f0d5063ce38a79c5b5d0271/Documentation/configuration.md
+
+#### etcd2
+
+The `coreos.etcd2.*` parameters will be translated to a partial systemd unit acting as an etcd configuration file.
+If the platform environment supports the templating feature of coreos-cloudinit it is possible to automate etcd configuration with the `$private_ipv4` and `$public_ipv4` fields. When generating a [discovery token](https://discovery.etcd.io/new?size=3), set the `size` parameter, since etcd uses this to determine if all members have joined the cluster. After the cluster is bootstrapped, it can grow or shrink from this configured size.
+
+For example, the following cloud-config document...
+
+```yaml
+#cloud-config
+
+coreos:
+  etcd2:
+    # generate a new token for each unique cluster from https://discovery.etcd.io/new?size=3
+    discovery: "https://discovery.etcd.io/<token>"
+    # multi-region and multi-cloud deployments need to use $public_ipv4
+    advertise-client-urls: "http://$public_ipv4:2379"
+    initial-advertise-peer-urls: "http://$private_ipv4:2380"
+    # listen on both the official ports and the legacy ports
+    # legacy ports can be omitted if your application doesn't depend on them
+    listen-client-urls: "http://0.0.0.0:2379,http://0.0.0.0:4001"
+    listen-peer-urls: "http://$private_ipv4:2380,http://$private_ipv4:7001"
+```
+
+...will generate a systemd unit drop-in for etcd2.service with the following contents:
+
+```yaml
+[Service]
+Environment="ETCD_DISCOVERY=https://discovery.etcd.io/<token>"
+Environment="ETCD_ADVERTISE_CLIENT_URLS=http://203.0.113.29:2379"
+Environment="ETCD_INITIAL_ADVERTISE_PEER_URLS=http://192.0.2.13:2380"
+Environment="ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379,http://0.0.0.0:4001"
+Environment="ETCD_LISTEN_PEER_URLS=http://192.0.2.13:2380,http://192.0.2.13:7001"
+```
+
+For more information about the available configuration parameters, see the [etcd documentation][etcd-config].
+
+_Note: The `$private_ipv4` and `$public_ipv4` substitution variables referenced in other documents are only supported on Amazon EC2, Google Compute Engine, OpenStack, Rackspace, DigitalOcean, and Vagrant._
+
+[etcd-config]: https://github.com/coreos/etcd/blob/86e616c6e974828fc9119c1eb0f6439577a9ce0b/Documentation/configuration.md
 
 #### fleet
 
-The `coreos.fleet.*` parameters work very similarly to `coreos.etcd.*`, and allow for the configuration of fleet through environment variables. For example, the following cloud-config document...
+The `coreos.fleet.*` parameters work very similarly to `coreos.etcd2.*`, and allow for the configuration of fleet through environment variables. For example, the following cloud-config document...
 
 ```yaml
 #cloud-config
 
 coreos:
   fleet:
-      public-ip: $public_ipv4
-      metadata: region=us-west
+      public-ip: "$public_ipv4"
+      metadata: "region=us-west"
 ```
 
 ...will generate a systemd unit drop-in like this:
@@ -94,13 +144,27 @@ Environment="FLEET_PUBLIC_IP=203.0.113.29"
 Environment="FLEET_METADATA=region=us-west"
 ```
 
+List of fleet configuration parameters:
+
+- **agent_ttl**: An Agent will be considered dead if it exceeds this amount of time to communicate with the Registry
+- **engine_reconcile_interval**: Interval in seconds at which the engine should reconcile the cluster schedule in etcd
+- **etcd_cafile**: Path to CA file used for TLS communication with etcd
+- **etcd_certfile**: Provide TLS configuration when SSL certificate authentication is enabled in etcd endpoints
+- **etcd_keyfile**: Path to private key file used for TLS communication with etcd
+- **etcd_key_prefix**: etcd prefix path to be used for fleet keys
+- **etcd_request_timeout**: Amount of time in seconds to allow a single etcd request before considering it failed
+- **etcd_servers**: Comma separated list of etcd endpoints
+- **metadata**: Comma separated key/value pairs that are published with the local to the fleet registry
+- **public_ip**: IP accessible by other nodes for inter-host communication
+- **verbosity**: Enable debug logging by setting this to an integer value greater than zero
+
 For more information on fleet configuration, see the [fleet documentation][fleet-config].
 
 [fleet-config]: https://github.com/coreos/fleet/blob/master/Documentation/deployment-and-configuration.md#configuration
 
 #### flannel
 
-The `coreos.flannel.*` parameters also work very similarly to `coreos.etcd.*`
+The `coreos.flannel.*` parameters also work very similarly to `coreos.etcd2.*`
 and `coreos.fleet.*`. They can be used to set environment variables for
 flanneld. For example, the following cloud-config...
 
@@ -109,7 +173,7 @@ flanneld. For example, the following cloud-config...
 
 coreos:
   flannel:
-      etcd_prefix: /coreos.com/network2
+      etcd_prefix: "/coreos.com/network2"
 ```
 
 ...will generate a systemd unit drop-in like so:
@@ -125,10 +189,13 @@ List of flannel configuration parameters:
 - **etcd_cafile**: Path to CA file used for TLS communication with etcd
 - **etcd_certfile**: Path to certificate file used for TLS communication with etcd
 - **etcd_keyfile**: Path to private key file used for TLS communication with etcd
-- **etcd_prefix**: Etcd prefix path to be used for flannel keys
+- **etcd_prefix**: etcd prefix path to be used for flannel keys
 - **ip_masq**: Install IP masquerade rules for traffic outside of flannel subnet
 - **subnet_file**: Path to flannel subnet file to write out
 - **interface**: Interface (name or IP) that should be used for inter-host communication
+- **public_ip**: IP accessible by other nodes for inter-host communication
+
+For more information on flannel configuration, see the [flannel documentation][flannel-readme].
 
 [flannel-readme]: https://github.com/coreos/flannel/blob/master/README.md
 
@@ -142,15 +209,22 @@ for locksmith. For example, the following cloud-config...
 
 coreos:
   locksmith:
-      endpoint: example.com:4001
+      endpoint: "http://example.com:2379"
 ```
 
 ...will generate a systemd unit drop-in like so:
 
 ```
 [Service]
-Environment="LOCKSMITHD_ENDPOINT=example.com:4001"
+Environment="LOCKSMITHD_ENDPOINT=http://example.com:2379"
 ```
+
+List of locksmith configuration parameters:
+
+- **endpoint**: Comma separated list of etcd endpoints
+- **etcd_cafile**: Path to CA file used for TLS communication with etcd
+- **etcd_certfile**: Path to certificate file used for TLS communication with etcd
+- **etcd_keyfile**: Path to private key file used for TLS communication with etcd
 
 For the complete list of locksmith configuration parameters, see the [locksmith documentation][locksmith-readme].
 
@@ -182,7 +256,7 @@ The `reboot-strategy` parameter also affects the behaviour of [locksmith](https:
 #cloud-config
 coreos:
   update:
-    reboot-strategy: etcd-lock
+    reboot-strategy: "etcd-lock"
 ```
 
 #### units
@@ -213,8 +287,8 @@ Write a unit to disk, automatically starting it.
 
 coreos:
   units:
-    - name: docker-redis.service
-      command: start
+    - name: "docker-redis.service"
+      command: "start"
       content: |
         [Unit]
         Description=Redis container
@@ -234,25 +308,25 @@ Add the DOCKER_OPTS environment variable to docker.service.
 
 coreos:
   units:
-    - name: docker.service
+    - name: "docker.service"
       drop-ins:
-        - name: 50-insecure-registry.conf
+        - name: "50-insecure-registry.conf"
           content: |
             [Service]
             Environment=DOCKER_OPTS='--insecure-registry="10.0.1.0/24"'
 ```
 
-Start the built-in `etcd` and `fleet` services:
+Start the built-in `etcd2` and `fleet` services:
 
 ```yaml
 #cloud-config
 
 coreos:
   units:
-    - name: etcd.service
-      command: start
-    - name: fleet.service
-      command: start
+    - name: "etcd2.service"
+      command: "start"
+    - name: "fleet.service"
+      command: "start"
 ```
 
 ### ssh_authorized_keys
@@ -266,7 +340,7 @@ Override this by using the `--ssh-key-name` flag when calling `coreos-cloudinit`
 #cloud-config
 
 ssh_authorized_keys:
-  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0g+ZTxC7weoIJLUafOgrm+h...
+  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0g+ZTxC7weoIJLUafOgrm+h..."
 ```
 
 ### hostname
@@ -277,7 +351,7 @@ This is the local part of a fully-qualified domain name (i.e. `foo` in `foo.exam
 ```yaml
 #cloud-config
 
-hostname: coreos1
+hostname: "coreos1"
 ```
 
 ### users
@@ -294,9 +368,9 @@ All but the `passwd` and `ssh-authorized-keys` fields will be ignored if the use
 - **groups**: Add user to these additional groups
 - **no-user-group**: Boolean. Skip default group creation.
 - **ssh-authorized-keys**: List of public SSH keys to authorize for this user
-- **coreos-ssh-import-github**: Authorize SSH keys from GitHub user
-- **coreos-ssh-import-github-users**: Authorize SSH keys from a list of GitHub users
-- **coreos-ssh-import-url**: Authorize SSH keys imported from a url endpoint.
+- **coreos-ssh-import-github** [DEPRECATED]: Authorize SSH keys from GitHub user
+- **coreos-ssh-import-github-users** [DEPRECATED]: Authorize SSH keys from a list of GitHub users
+- **coreos-ssh-import-url** [DEPRECATED]: Authorize SSH keys imported from a url endpoint.
 - **system**: Create the user as a system user. No home directory will be created.
 - **no-log-init**: Boolean. Skip initialization of lastlog and faillog databases.
 - **shell**: User's login shell.
@@ -313,13 +387,13 @@ The following fields are not yet implemented:
 #cloud-config
 
 users:
-  - name: elroy
-    passwd: $6$5s2u6/jR$un0AvWnqilcgaNB3Mkxd5yYv6mTlWfOoCYHZmfi3LDKVltj.E8XNKEcwWm...
+  - name: "elroy"
+    passwd: "$6$5s2u6/jR$un0AvWnqilcgaNB3Mkxd5yYv6mTlWfOoCYHZmfi3LDKVltj.E8XNKEcwWm..."
     groups:
-      - sudo
-      - docker
+      - "sudo"
+      - "docker"
     ssh-authorized-keys:
-      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0g+ZTxC7weoIJLUafOgrm+h...
+      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC0g+ZTxC7weoIJLUafOgrm+h..."
 ```
 
 #### Generating a password hash
@@ -342,43 +416,6 @@ perl -e 'print crypt("password","\$6\$SALT\$") . "\n"'
 
 Using a higher number of rounds will help create more secure passwords, but given enough time, password hashes can be reversed.  On most RPM based distributions there is a tool called mkpasswd available in the `expect` package, but this does not handle "rounds" nor advanced hashing algorithms. 
 
-#### Retrieving SSH Authorized Keys
-
-##### From a GitHub User
-
-Using the `coreos-ssh-import-github` field, we can import public SSH keys from a GitHub user to use as authorized keys to a server.
-
-```yaml
-#cloud-config
-
-users:
-  - name: elroy
-    coreos-ssh-import-github: elroy
-```
-
-##### From an HTTP Endpoint
-
-We can also pull public SSH keys from any HTTP endpoint which matches [GitHub's API response format](https://developer.github.com/v3/users/keys/#list-public-keys-for-a-user).
-For example, if you have an installation of GitHub Enterprise, you can provide a complete URL with an authentication token:
-
-```yaml
-#cloud-config
-
-users:
-  - name: elroy
-    coreos-ssh-import-url: https://github-enterprise.example.com/api/v3/users/elroy/keys?access_token=<TOKEN>
-```
-
-You can also specify any URL whose response matches the JSON format for public keys:
-
-```yaml
-#cloud-config
-
-users:
-  - name: elroy
-    coreos-ssh-import-url: https://example.com/public-keys
-```
-
 ### write_files
 
 The `write_files` directive defines a set of files to create on the local filesystem.
@@ -397,32 +434,32 @@ Each item in the list may have the following keys:
 ```yaml
 #cloud-config
 write_files:
-  - path: /etc/resolv.conf
-    permissions: 0644
-    owner: root
+  - path: "/etc/resolv.conf"
+    permissions: "0644"
+    owner: "root"
     content: |
       nameserver 8.8.8.8
-  - path: /etc/motd
-    permissions: 0644
-    owner: root
+  - path: "/etc/motd"
+    permissions: "0644"
+    owner: "root"
     content: |
       Good news, everyone!
-  - path: /tmp/like_this
-    permissions: 0644
-    owner: root
-    encoding: gzip
+  - path: "/tmp/like_this"
+    permissions: "0644"
+    owner: "root"
+    encoding: "gzip"
     content: !!binary |
       H4sIAKgdh1QAAwtITM5WyK1USMqvUCjPLMlQSMssS1VIya9KzVPIySwszS9SyCpNLwYARQFQ5CcAAAA=
-  - path: /tmp/or_like_this
-    permissions: 0644
-    owner: root
-    encoding: gzip+base64
+  - path: "/tmp/or_like_this"
+    permissions: "0644"
+    owner: "root"
+    encoding: "gzip+base64"
     content: |
       H4sIAKgdh1QAAwtITM5WyK1USMqvUCjPLMlQSMssS1VIya9KzVPIySwszS9SyCpNLwYARQFQ5CcAAAA=
-  - path: /tmp/todolist
-    permissions: 0644
-    owner: root
-    encoding: base64
+  - path: "/tmp/todolist"
+    permissions: "0644"
+    owner: "root"
+    encoding: "base64"
     content: |
       UGFjayBteSBib3ggd2l0aCBmaXZlIGRvemVuIGxpcXVvciBqdWdz
 ```
@@ -437,5 +474,5 @@ infrastructure in place to resolve its own hostname, for example, when using Vag
 ```yaml
 #cloud-config
 
-manage_etc_hosts: localhost
+manage_etc_hosts: "localhost"
 ```

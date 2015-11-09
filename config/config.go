@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -47,6 +48,7 @@ type CloudConfig struct {
 
 type CoreOS struct {
 	Etcd      Etcd      `yaml:"etcd"`
+	Etcd2     Etcd2     `yaml:"etcd2"`
 	Flannel   Flannel   `yaml:"flannel"`
 	Fleet     Fleet     `yaml:"fleet"`
 	Locksmith Locksmith `yaml:"locksmith"`
@@ -58,10 +60,8 @@ type CoreOS struct {
 func IsCloudConfig(userdata string) bool {
 	header := strings.SplitN(userdata, "\n", 2)[0]
 
-	// Explicitly trim the header so we can handle user-data from
-	// non-unix operating systems. The rest of the file is parsed
-	// by yaml, which correctly handles CRLF.
-	header = strings.TrimSuffix(header, "\r")
+	// Trim trailing whitespaces
+	header = strings.TrimRightFunc(header, unicode.IsSpace)
 
 	return (header == "#cloud-config")
 }
