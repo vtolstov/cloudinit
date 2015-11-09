@@ -33,16 +33,16 @@ import (
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/packet"
 	"github.com/coreos/coreos-cloudinit/datasource/proc_cmdline"
 	"github.com/coreos/coreos-cloudinit/datasource/url"
-	"github.com/coreos/coreos-cloudinit/datasource/vmware"
+
+	//	"github.com/coreos/coreos-cloudinit/datasource/vmware"
 	"github.com/coreos/coreos-cloudinit/datasource/waagent"
 	"github.com/coreos/coreos-cloudinit/initialize"
 	"github.com/coreos/coreos-cloudinit/network"
 	"github.com/coreos/coreos-cloudinit/pkg"
 	"github.com/coreos/coreos-cloudinit/system"
-	"github.com/coreos/coreos-cloudinit/datasource/metadata/openstack"
 )
 
-const (
+var (
 	datasourceInterval    = 100 * time.Millisecond
 	datasourceMaxInterval = 30 * time.Second
 	datasourceTimeout     = 5 * time.Minute
@@ -63,7 +63,7 @@ var (
 			packetMetadataService       string
 			url                         string
 			procCmdLine                 bool
-			vmware                      bool
+			//			vmware                      bool
 		}
 		convertNetconf string
 		workspace      string
@@ -85,11 +85,11 @@ func init() {
 	flag.StringVar(&flags.sources.ec2MetadataService, "from-ec2-metadata", "", "Download EC2 data from the provided url")
 	//	flag.BoolVar(&flags.sources.cloudSigmaMetadataService, "from-cloudsigma-metadata", false, "Download data from CloudSigma server context")
 	flag.StringVar(&flags.sources.digitalOceanMetadataService, "from-digitalocean-metadata", "", "Download DigitalOcean data from the provided url")
-	flag.StringVar(&flags.sources.openstackMetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
+	flag.StringVar(&flags.sources.ec2MetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
 	flag.StringVar(&flags.sources.packetMetadataService, "from-packet-metadata", "", "Download Packet data from metadata service")
 	flag.StringVar(&flags.sources.url, "from-url", "", "Download user-data from provided url")
 	flag.BoolVar(&flags.sources.procCmdLine, "from-proc-cmdline", false, fmt.Sprintf("Parse %s for '%s=<url>', using the cloud-config served by an HTTP GET to <url>", proc_cmdline.ProcCmdlineLocation, proc_cmdline.ProcCmdlineCloudConfigFlag))
-	flag.BoolVar(&flags.sources.vmware, "from-vmware-guestinfo", false, "Read data from VMware guestinfo")
+	//	flag.BoolVar(&flags.sources.vmware, "from-vmware-guestinfo", false, "Read data from VMware guestinfo")
 	flag.StringVar(&flags.oem, "oem", "", "Use the settings specific to the provided OEM")
 	flag.StringVar(&flags.convertNetconf, "convert-netconf", "", "Read the network config provided in cloud-drive and translate it from the specified format into networkd unit files")
 	flag.StringVar(&flags.workspace, "workspace", "/var/lib/cloudinit", "Base directory where cloudinit should use to store data")
@@ -97,7 +97,6 @@ func init() {
 	flag.BoolVar(&flags.validate, "validate", false, "[EXPERIMENTAL] Validate the user-data but do not apply it to the system")
 	flag.StringVar(&flags.timeout, "timeout", "60s", "Timeout to wait for all datasource metadata")
 	flag.StringVar(&flags.dstimeout, "dstimeout", "10s", "Timeout to wait for single datasource metadata")
-
 }
 
 type oemConfig map[string]string
@@ -112,10 +111,6 @@ var (
 			"from-ec2-metadata": "http://169.254.169.254/",
 			"from-configdrive":  "/media/configdrive",
 		},
-		"openstack": oemConfig{
-			"from-openstack-metadata": "http://169.254.169.254/",
-			"convert-netconf":         "debian",
-		},
 		"rackspace-onmetal": oemConfig{
 			"from-configdrive": "/media/configdrive",
 			"convert-netconf":  "debian",
@@ -123,16 +118,16 @@ var (
 		"azure": oemConfig{
 			"from-waagent": "/var/lib/waagent",
 		},
-		"cloudsigma": oemConfig{
-			"from-cloudsigma-metadata": "true",
-		},
+		//		"cloudsigma": oemConfig{
+		//			"from-cloudsigma-metadata": "true",
+		//		},
 		"packet": oemConfig{
 			"from-packet-metadata": "https://metadata.packet.net/",
 		},
-		"vmware": oemConfig{
-			"from-vmware-guestinfo": "true",
-			"convert-netconf":       "vmware",
-		},
+		//		"vmware": oemConfig{
+		//			"from-vmware-guestinfo": "true",
+		//			"convert-netconf":       "vmware",
+		//		},
 	}
 )
 
@@ -182,7 +177,7 @@ func main() {
 	case "debian":
 	case "digitalocean":
 	case "packet":
-	case "vmware":
+		//	case "vmware":
 	default:
 		fmt.Printf("Invalid option to -convert-netconf: '%s'. Supported options: 'debian, digitalocean, packet, vmware'\n", flags.convertNetconf)
 		os.Exit(2)
@@ -190,7 +185,7 @@ func main() {
 
 	dss := getDatasources()
 	if len(dss) == 0 {
-		fmt.Println("Provide at least one of -from-file, -from-configdrive, -from-ec2-metadata, -from-cloudsigma-metadata, --from-openstack-metadata-from-packet-metadata, -from-digitalocean-metadata, -from-vmware-guestinfo, -from-waagent, -from-url or -from-proc-cmdline")
+		fmt.Println("Provide at least one of -from-file, -from-configdrive, -from-ec2-metadata, -from-cloudsigma-metadata, -from-packet-metadata, -from-digitalocean-metadata, -from-vmware-guestinfo, -from-waagent, -from-url or -from-proc-cmdline")
 		os.Exit(2)
 	}
 
@@ -265,8 +260,8 @@ func main() {
 			ifaces, err = network.ProcessDigitalOceanNetconf(metadata.NetworkConfig.(digitalocean.Metadata))
 		case "packet":
 			ifaces, err = network.ProcessPacketNetconf(metadata.NetworkConfig.(packet.NetworkData))
-		case "vmware":
-			ifaces, err = network.ProcessVMwareNetconf(metadata.NetworkConfig.(map[string]string))
+			//		case "vmware":
+			//			ifaces, err = network.ProcessVMwareNetconf(metadata.NetworkConfig.(map[string]string))
 		default:
 			err = fmt.Errorf("Unsupported network config format %q", flags.convertNetconf)
 		}
@@ -339,9 +334,6 @@ func getDatasources() []datasource.Datasource {
 	if flags.sources.digitalOceanMetadataService != "" {
 		dss = append(dss, digitalocean.NewDatasource(flags.sources.digitalOceanMetadataService))
 	}
-	if flags.sources.openstackMetadataService != "" {
-		dss = append(dss, openstack.NewDatasource(flags.sources.openstackMetadataService))
-	}
 	if flags.sources.waagent != "" {
 		dss = append(dss, waagent.NewDatasource(flags.sources.waagent))
 	}
@@ -351,9 +343,9 @@ func getDatasources() []datasource.Datasource {
 	if flags.sources.procCmdLine {
 		dss = append(dss, proc_cmdline.NewDatasource())
 	}
-	if flags.sources.vmware {
-		dss = append(dss, vmware.NewDatasource())
-	}
+	//	if flags.sources.vmware {
+	//		dss = append(dss, vmware.NewDatasource())
+	//	}
 	return dss
 }
 

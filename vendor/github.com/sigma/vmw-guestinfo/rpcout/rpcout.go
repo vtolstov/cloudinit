@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coreos/coreos-cloudinit/Godeps/_workspace/src/github.com/sigma/vmw-guestinfo/message"
+	"github.com/sigma/vmw-guestinfo/message"
 )
 
 // ErrRpciFormat represents an invalid result format

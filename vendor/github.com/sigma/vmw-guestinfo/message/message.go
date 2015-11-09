@@ -3,7 +3,7 @@ package message
 import (
 	"errors"
 
-	"github.com/coreos/coreos-cloudinit/Godeps/_workspace/src/github.com/sigma/vmw-guestinfo/bridge"
+	"github.com/sigma/vmw-guestinfo/bridge"
 )
 
 var (

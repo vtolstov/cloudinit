@@ -3,7 +3,7 @@
 ORG_PATH="github.com/coreos"
 REPO_PATH="${ORG_PATH}/coreos-cloudinit"
 VERSION=$(git describe --tags)
-GLDFLAGS="-X main.version \"${VERSION}\""
+GLDFLAGS="-X main.version=${VERSION}"
 
 rm -rf bin tmp
 

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/coreos-cloudinit/Godeps/_workspace/src/github.com/sigma/vmw-guestinfo/rpcout"
+	"github.com/sigma/vmw-guestinfo/rpcout"
 )
 
 // Config gives access to the vmx config through the VMware backdoor

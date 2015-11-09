@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/coreos/coreos-cloudinit/Godeps/_workspace/src/github.com/sigma/vmw-guestinfo/rpcvmx"
-	"github.com/coreos/coreos-cloudinit/Godeps/_workspace/src/github.com/sigma/vmw-guestinfo/vmcheck"
+	"github.com/coreos/coreos-cloudinit/github.com/sigma/vmw-guestinfo/rpcvmx"
+	"github.com/coreos/coreos-cloudinit/github.com/sigma/vmw-guestinfo/vmcheck"
 )
 
 func main() {

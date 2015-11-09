@@ -20,9 +20,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/vishvananda/netlink"
 	"github.com/coreos/coreos-cloudinit/config"
 	"github.com/coreos/coreos-cloudinit/network"
+	"github.com/vishvananda/netlink"
 )
 
 func RestartNetwork(interfaces []network.InterfaceGenerator) (err error) {
@@ -56,7 +56,11 @@ func downNetworkInterfaces(interfaces []network.InterfaceGenerator) error {
 	for _, iface := range interfaces {
 		if systemInterface, ok := sysInterfaceMap[iface.Name()]; ok {
 			log.Printf("Taking down interface %q\n", systemInterface.Name)
-			if err := netlink.NetworkLinkDown(systemInterface); err != nil {
+			link, err := netlink.LinkByName(systemInterface.Name)
+			if err != nil {
+				log.Printf("Error while downing interface %q (%s). Continuing...\n", systemInterface.Name, err)
+			}
+			if err = netlink.LinkSetDown(link); err != nil {
 				log.Printf("Error while downing interface %q (%s). Continuing...\n", systemInterface.Name, err)
 			}
 		}
