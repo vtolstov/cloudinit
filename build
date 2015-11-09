@@ -3,17 +3,31 @@
 ORG_PATH="github.com/vtolstov"
 REPO_PATH="${ORG_PATH}/cloudinit"
 
+rm -rf bin tmp
+
+export GO15VENDOREXPERIMENT=1
 export GOBIN=${PWD}/bin
-export GOPATH=${PWD}/third_party
-export CGO_ENABLED=0
+export GOPATH=${PWD}/gopath
 mkdir -p $GOBIN
+mkdir -p $GOPATH
+mkdir -p bin
+
+go version | grep -q go1.5
+
+if [ "x$?" != "x0" ]; then
+    export GOROOT=$(pwd)/goroot
+    export PATH=$GOROOT/bin:$PATH
+    mkdir -p $GOROOT
+    wget https://storage.googleapis.com/golang/go1.5.linux-amd64.tar.gz -O tmp/go.tar.gz
+    tar --strip-components=1 -C $GOROOT -xf tmp/go.tar.gz
+fi
 
 if [ ! -h $GOPATH/src/${REPO_PATH} ]; then
         mkdir -p $GOPATH/src/${ORG_PATH}
         ln -s ../../../.. $GOPATH/src/${REPO_PATH} || echo "exit 255"
 fi
 
-for os in linux freebsd; do
-    GOOS=${os} go build -x -a -installsuffix cgo -o bin/cloudinit-${os}-x86_64 ${REPO_PATH}
-    GOOS=${os} GOARCH=386 go build -x -a -installsuffix cgo -o bin/cloudinit-${os}-x86_32 ${REPO_PATH}
+for os in linux freebsd netbsd openbsd; do
+    GOOS=${os} go build -x  -tags netgo -o bin/cloudinit-${os}-x86_64 ${REPO_PATH}
+    GOOS=${os} GOARCH=386 go build -x  -tags netgo -o bin/cloudinit-${os}-x86_32 ${REPO_PATH}
 done
