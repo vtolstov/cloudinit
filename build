@@ -14,7 +14,7 @@ mkdir -p $GOBIN
 mkdir -p $GOPATH
 mkdir -p bin tmp
 
-go version | grep -q go
+which go 2>/dev/null
 
 if [ "x$?" != "x0" ]; then
     export GOROOT=$(pwd)/goroot
