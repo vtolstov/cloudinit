@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/coreos-cloudinit/datasource"
 	"github.com/coreos/coreos-cloudinit/datasource/configdrive"
 	"github.com/coreos/coreos-cloudinit/datasource/file"
+	"github.com/coreos/coreos-cloudinit/datasource/metadata/openstack"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/digitalocean"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/ec2"
 	"github.com/coreos/coreos-cloudinit/datasource/metadata/packet"
@@ -61,6 +62,7 @@ var (
 			waagent            string
 			metadataService    bool
 			ec2MetadataService string
+			openstackMetadataService string
 			//			cloudSigmaMetadataService   bool
 			digitalOceanMetadataService string
 			packetMetadataService       string
@@ -88,7 +90,7 @@ func init() {
 	flag.StringVar(&flags.sources.ec2MetadataService, "from-ec2-metadata", "", "Download EC2 data from the provided url")
 	//	flag.BoolVar(&flags.sources.cloudSigmaMetadataService, "from-cloudsigma-metadata", false, "Download data from CloudSigma server context")
 	flag.StringVar(&flags.sources.digitalOceanMetadataService, "from-digitalocean-metadata", "", "Download DigitalOcean data from the provided url")
-	flag.StringVar(&flags.sources.ec2MetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
+	flag.StringVar(&flags.sources.openstackMetadataService, "from-openstack-metadata", "", "Download OpenStack data from the provided url")
 	flag.StringVar(&flags.sources.packetMetadataService, "from-packet-metadata", "", "Download Packet data from metadata service")
 	flag.StringVar(&flags.sources.url, "from-url", "", "Download user-data from provided url")
 	flag.BoolVar(&flags.sources.procCmdLine, "from-proc-cmdline", false, fmt.Sprintf("Parse %s for '%s=<url>', using the cloud-config served by an HTTP GET to <url>", proc_cmdline.ProcCmdlineLocation, proc_cmdline.ProcCmdlineCloudConfigFlag))
@@ -188,10 +190,10 @@ func main() {
 
 	dss := getDatasources()
 	if len(dss) == 0 {
-		fmt.Println("Provide at least one of --from-file, --from-configdrive, --from-ec2-metadata, --from-cloudsigma-metadata, --from-packet-metadata, --from-digitalocean-metadata, --from-vmware-guestinfo, --from-waagent, --from-url or --from-proc-cmdline")
+		fmt.Println("Provide at least one of --from-file, --from-configdrive, --from-openstack-metadata, --from-ec2-metadata, --from-cloudsigma-metadata, --from-packet-metadata, --from-digitalocean-metadata, --from-vmware-guestinfo, --from-waagent, --from-url or --from-proc-cmdline")
 		os.Exit(2)
 	}
-
+  fmt.Printf("%#+v\n", dss)
 	ds := selectDatasource(dss)
 	if ds == nil {
 		log.Println("No datasources available in time")
@@ -333,6 +335,9 @@ func getDatasources() []datasource.Datasource {
 	if flags.sources.metadataService {
 		dss = append(dss, ec2.NewDatasource(ec2.DefaultAddress))
 	}
+	if flags.sources.openstackMetadataService != "" {
+	  dss = append(dss, openstack.NewDatasource(flags.sources.openstackMetadataService))
+  }
 	if flags.sources.ec2MetadataService != "" {
 		dss = append(dss, ec2.NewDatasource(flags.sources.ec2MetadataService))
 	}
