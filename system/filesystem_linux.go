@@ -30,7 +30,7 @@ import (
 	"syscall"
 	"unicode"
 
-	"github.com/vtolstov/go-ioctl"
+	ioctl "github.com/vtolstov/go-ioctl"
 )
 
 func rootMount() (string, error) {
@@ -95,8 +95,8 @@ func ResizeRootFS() error {
 
 	partstart := 0
 	partnum := 0
-	device := "/tmp/resize_dev"
-	partition := "/tmp/resize_part"
+	device := "/dev/resize_dev"
+	partition := "/dev/resize_part"
 	active := false
 	extended := false
 	parttype := "Linux"
