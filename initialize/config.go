@@ -42,18 +42,29 @@ type CloudConfigUnit interface {
 	Units() []system.Unit
 }
 
+func isLock(env *Environment) bool {
+	if _, err := os.Stat(path.Join(env.Workspace(), ".lock")); err != nil {
+		return false
+	}
+	return true
+}
+
+func Lock(env *Environment) error {
+	if !isLock(env) {
+		fp, err := os.OpenFile(path.Join(env.Workspace(), ".lock"), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, os.FileMode(0644))
+		if err != nil {
+			return err
+		}
+		return fp.Close()
+	}
+	return nil
+}
+
 // Apply renders a CloudConfig to an Environment. This can involve things like
 // configuring the hostname, adding new users, writing various configuration
 // files to disk, and manipulating systemd services.
 func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Environment) error {
 	var err error
-
-	if cfg.ResizeRootfs {
-		log.Printf("resize root filesystem")
-		if err = system.ResizeRootFS(); err != nil {
-			return err
-		}
-	}
 
 	for _, cmdline := range cfg.RunCMD {
 		prog := strings.Fields(cmdline)[0]
@@ -61,21 +72,17 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 		exec.Command(prog, args...).Run()
 	}
 
-	lockf := path.Join(env.Workspace(), ".lock")
-
-	if _, err = os.Stat(lockf); err == nil {
-		return nil
-	}
-
 	if err = os.MkdirAll(env.Workspace(), os.FileMode(0755)); err != nil {
 		return err
 	}
 
-	if cfg.Hostname != "" {
-		if err = system.SetHostname(cfg.Hostname); err != nil {
-			return err
+	if !isLock(env) {
+		if cfg.Hostname != "" {
+			if err = system.SetHostname(cfg.Hostname); err != nil {
+				return err
+			}
+			log.Printf("Set hostname to %s", cfg.Hostname)
 		}
-		log.Printf("Set hostname to %s", cfg.Hostname)
 	}
 
 	for _, user := range cfg.Users {
@@ -84,26 +91,28 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 			continue
 		}
 
-		if system.UserExists(&user) {
-			log.Printf("User '%s' exists, ignoring creation-time fields", user.Name)
-			if user.PasswordHash != "" {
-				log.Printf("Setting '%s' user's password", user.Name)
-				if err := system.SetUserPassword(user.Name, user.PasswordHash); err != nil {
-					log.Printf("Failed setting '%s' user's password: %v", user.Name, err)
+		if !isLock(env) {
+			if system.UserExists(&user) {
+				log.Printf("User '%s' exists, ignoring creation-time fields", user.Name)
+				if user.PasswordHash != "" {
+					log.Printf("Setting '%s' user's password", user.Name)
+					if err := system.SetUserPassword(user.Name, user.PasswordHash); err != nil {
+						log.Printf("Failed setting '%s' user's password: %v", user.Name, err)
+						return err
+					}
+				}
+			} else {
+				log.Printf("Creating user '%s'", user.Name)
+				if err = system.CreateUser(&user); err != nil {
+					log.Printf("Failed creating user '%s': %v", user.Name, err)
 					return err
 				}
 			}
-		} else {
-			log.Printf("Creating user '%s'", user.Name)
-			if err = system.CreateUser(&user); err != nil {
-				log.Printf("Failed creating user '%s': %v", user.Name, err)
+
+			if err = system.LockUnlockUser(&user); err != nil {
+				log.Printf("Failed lock/unlock user '%s': %v", user.Name, err)
 				return err
 			}
-		}
-
-		if err = system.LockUnlockUser(&user); err != nil {
-			log.Printf("Failed lock/unlock user '%s': %v", user.Name, err)
-			return err
 		}
 
 		if len(user.SSHAuthorizedKeys) > 0 {
@@ -141,83 +150,86 @@ func Apply(cfg config.CloudConfig, ifaces []network.InterfaceGenerator, env *Env
 		}
 	}
 
-	var writeFiles []system.File
-	for _, file := range cfg.WriteFiles {
-		writeFiles = append(writeFiles, system.File{File: file})
-	}
-
-	for _, ccf := range []CloudConfigFile{
-		system.OEM{OEM: cfg.CoreOS.OEM},
-		system.Update{Update: cfg.CoreOS.Update, ReadConfig: system.DefaultReadConfig},
-		system.EtcHosts{EtcHosts: cfg.ManageEtcHosts},
-		system.Flannel{Flannel: cfg.CoreOS.Flannel},
-	} {
-		f, err := ccf.File()
-		if err != nil {
-			return err
+	if !isLock(env) {
+		var writeFiles []system.File
+		for _, file := range cfg.WriteFiles {
+			writeFiles = append(writeFiles, system.File{File: file})
 		}
-		if f != nil {
-			writeFiles = append(writeFiles, *f)
-		}
-	}
 
-	var units []system.Unit
-	for _, u := range cfg.CoreOS.Units {
-		units = append(units, system.Unit{Unit: u})
-	}
-
-	for _, ccu := range []CloudConfigUnit{
-		system.Etcd{Etcd: cfg.CoreOS.Etcd},
-		system.Etcd2{Etcd2: cfg.CoreOS.Etcd2},
-		system.Fleet{Fleet: cfg.CoreOS.Fleet},
-		system.Locksmith{Locksmith: cfg.CoreOS.Locksmith},
-		system.Update{Update: cfg.CoreOS.Update, ReadConfig: system.DefaultReadConfig},
-	} {
-		units = append(units, ccu.Units()...)
-	}
-
-	wroteEnvironment := false
-	for _, file := range writeFiles {
-		fullPath, err := system.WriteFile(&file, env.Root())
-		if err != nil {
-			return err
-		}
-		if path.Clean(file.Path) == "/etc/environment" {
-			wroteEnvironment = true
-		}
-		log.Printf("Wrote file %s to filesystem", fullPath)
-	}
-
-	if !wroteEnvironment {
-		ef := env.DefaultEnvironmentFile()
-		if ef != nil {
-			err := system.WriteEnvFile(ef, env.Root())
+		for _, ccf := range []CloudConfigFile{
+			system.OEM{OEM: cfg.CoreOS.OEM},
+			system.Update{Update: cfg.CoreOS.Update, ReadConfig: system.DefaultReadConfig},
+			system.EtcHosts{EtcHosts: cfg.ManageEtcHosts},
+			system.Flannel{Flannel: cfg.CoreOS.Flannel},
+		} {
+			f, err := ccf.File()
 			if err != nil {
 				return err
 			}
-			log.Printf("Updated /etc/environment")
+			if f != nil {
+				writeFiles = append(writeFiles, *f)
+			}
 		}
-	}
 
-	if len(ifaces) > 0 {
-		units = append(units, createNetworkingUnits(ifaces)...)
-		if err = system.RestartNetwork(ifaces); err != nil {
+		var units []system.Unit
+		for _, u := range cfg.CoreOS.Units {
+			units = append(units, system.Unit{Unit: u})
+		}
+
+		for _, ccu := range []CloudConfigUnit{
+			system.Etcd{Etcd: cfg.CoreOS.Etcd},
+			system.Etcd2{Etcd2: cfg.CoreOS.Etcd2},
+			system.Fleet{Fleet: cfg.CoreOS.Fleet},
+			system.Locksmith{Locksmith: cfg.CoreOS.Locksmith},
+			system.Update{Update: cfg.CoreOS.Update, ReadConfig: system.DefaultReadConfig},
+		} {
+			units = append(units, ccu.Units()...)
+		}
+
+		wroteEnvironment := false
+		for _, file := range writeFiles {
+			fullPath, err := system.WriteFile(&file, env.Root())
+			if err != nil {
+				return err
+			}
+			if path.Clean(file.Path) == "/etc/environment" {
+				wroteEnvironment = true
+			}
+			log.Printf("Wrote file %s to filesystem", fullPath)
+		}
+
+		if !wroteEnvironment {
+			ef := env.DefaultEnvironmentFile()
+			if ef != nil {
+				err := system.WriteEnvFile(ef, env.Root())
+				if err != nil {
+					return err
+				}
+				log.Printf("Updated /etc/environment")
+			}
+		}
+
+		if len(ifaces) > 0 {
+			units = append(units, createNetworkingUnits(ifaces)...)
+			if err = system.RestartNetwork(ifaces); err != nil {
+				return err
+			}
+		}
+
+		um := system.NewUnitManager(env.Root())
+		if err = processUnits(units, env.Root(), um); err != nil {
 			return err
 		}
 	}
 
-	um := system.NewUnitManager(env.Root())
-	if err = processUnits(units, env.Root(), um); err != nil {
-		return err
+	if cfg.ResizeRootfs {
+		log.Printf("resize root filesystem")
+		if err = system.ResizeRootFS(); err != nil {
+			return err
+		}
 	}
 
-	fp, err := os.OpenFile(lockf, os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, os.FileMode(0644))
-	if err != nil {
-		return err
-	}
-	fp.Close()
-
-	return nil
+	return Lock(env)
 }
 
 func createNetworkingUnits(interfaces []network.InterfaceGenerator) (units []system.Unit) {
